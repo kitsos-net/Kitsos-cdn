@@ -1,0 +1,18 @@
+/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
+
+/fonts/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
+
+/*.woff2
+  Content-Type: font/woff2
+  Access-Control-Allow-Origin: *
+
+/*.js
+  Content-Type: application/javascript
+
+/404.html
+  Cache-Control: no-store
+  Content-Type: text/html
