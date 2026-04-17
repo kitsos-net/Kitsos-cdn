@@ -1,0 +1,116 @@
+openapi: 3.0.0
+x-stoplight:
+  id: gpfa0jddkgktt
+info:
+  title: kitsos-crypt-api
+  version: '1.0'
+  contact:
+    name: Kitsos
+    url: 'https://kitsos.net/contact?source=api'
+    email: support@services.kitsos.net
+  termsOfService: 'https://kitsos.net/terms'
+  summary: Kitsos Crypt API
+  description: 'Allows you to create passwords, tokens, random numbers ans hashes via an API.'
+servers:
+  - url: 'https://api.kitsos.net/crypt'
+    description: ''
+  - url: 'https://crypt.api.kitsos.net'
+    description: ''
+paths:
+  /pass:
+    get:
+      summary: /pass
+      responses: {}
+      operationId: get-pass
+      x-stoplight:
+        id: rfiv3j6mbbob6
+      description: Generates a secure password.
+    parameters:
+      - schema:
+          type: number
+          minimum: 0
+          example: 20
+        in: query
+        name: len
+        description: lenght of the generated password (default 20)
+      - schema:
+          type: boolean
+        in: query
+        name: symbols
+        description: adds all kind of special characters
+      - schema:
+          type: boolean
+        in: query
+        name: strong
+        description: only uses basic special characters
+  /token:
+    get:
+      summary: /token
+      tags: []
+      responses: {}
+      operationId: get-token
+      x-stoplight:
+        id: y8m7lu1olb7tx
+      description: Generates a cryptographic key.
+    parameters:
+      - schema:
+          type: number
+          minimum: 0
+          example: 32
+        in: query
+        name: len
+        description: Number of bytes (default 32)
+      - schema:
+          type: string
+          example: hex
+        in: query
+        name: enc
+        description: '''hex'' (default) or ''base64'''
+  /num:
+    get:
+      summary: /num
+      tags: []
+      responses: {}
+      operationId: get-num
+      x-stoplight:
+        id: vknvnyd2wkmwe
+      description: Generates a random number.
+    parameters:
+      - schema:
+          type: number
+          example: 0
+        in: query
+        name: min
+        description: minimum (default 0)
+      - schema:
+          type: string
+          example: '100'
+        in: query
+        name: max
+        description: maximum (default 100)
+  /hash:
+    get:
+      summary: /hash
+      tags: []
+      responses: {}
+      operationId: get-hash
+      x-stoplight:
+        id: a61f8wchdqaea
+      description: Creates a hash of a text.
+    parameters:
+      - schema:
+          type: string
+          example: Hello%20World
+        in: query
+        name: text
+        description: The text you want to hash
+        required: true
+      - schema:
+          type: string
+          example: SHA-256
+        in: query
+        name: algo
+        description: 'algorithm (SHA-1, SHA-256 (default), SHA-512)'
+components:
+  schemas: {}
+  parameters: {}
