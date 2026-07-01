@@ -2,118 +2,214 @@ openapi: 3.0.0
 x-stoplight:
   id: gpfa0jddkgktt
 info:
-  title: 'Kitsos Crypt API'
+  title: Kitsos Crypt API
   version: '1.0'
   contact:
-    name: 'Kitsos Support'
+    name: Kitsos Support
     url: 'https://kitsos.net/contact?source=api'
     email: support@services.kitsos.net
   termsOfService: 'https://kitsos.net/terms'
   summary: Kitsos Crypt API
-  description: 'Allows you to create passwords, tokens, random numbers ans hashes via an API.'
+  description: Allows you to create passwords, tokens, random numbers and hashes via an API.
 servers:
   - url: 'https://api.kitsos.net/crypt'
-    description: 'Default API URL'
+    description: Primary
   - url: 'https://crypt.api.kitsos.net'
-    description: 'Same function but with a custom domain'
-security:
-  - ApiKeyHeader: []
-  - ApiKeyQuery: []
+    description: Alternate
+tags:
+  - name: Passwords
+    description: Secure password generation
+  - name: Tokens
+    description: Cryptographic token/key generation
+  - name: Random
+    description: Random number generation
+  - name: Hashing
+    description: Hashing utilities
 paths:
   /pass:
     get:
-      summary: /pass
-      responses: {}
+      summary: Generate a password
+      tags:
+        - Passwords
       operationId: get-pass
       x-stoplight:
         id: rfiv3j6mbbob6
       description: Generates a secure password.
-    parameters:
-      - schema:
-          type: number
-          minimum: 0
-          example: 20
-        in: query
-        name: len
-        description: lenght of the generated password (default 20)
-      - schema:
-          type: boolean
-        in: query
-        name: symbols
-        description: adds all kind of special characters
-      - schema:
-          type: boolean
-        in: query
-        name: strong
-        description: only uses basic special characters
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 16384
+            default: 20
+            example: 20
+          in: query
+          name: len
+          description: >-
+            Length of the generated password (default 20). Internally allocates
+            len*4 random bytes, capped at 64 KB — max effective value is 16384.
+        - schema:
+            type: boolean
+            default: false
+          in: query
+          name: symbols
+          description: Adds all kinds of special characters
+        - schema:
+            type: boolean
+            default: false
+          in: query
+          name: strong
+          description: Only uses basic special characters
+      responses:
+        '200':
+          description: Successfully generated password
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: 'blRwbCIUtbmcz7bfuDkM'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /token:
     get:
-      summary: /token
-      tags: []
-      responses: {}
+      summary: Generate a cryptographic token
+      tags:
+        - Tokens
+      responses:
+        '200':
+          description: Successfully generated token
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: '6f99d7987cebc251d256fdb9aefd78b89f695f54641685739d5592f17ea65ab'
+        '400':
+          $ref: '#/components/responses/BadRequest'
       operationId: get-token
       x-stoplight:
         id: y8m7lu1olb7tx
       description: Generates a cryptographic key.
-    parameters:
-      - schema:
-          type: number
-          minimum: 0
-          example: 32
-        in: query
-        name: len
-        description: Number of bytes (default 32)
-      - schema:
-          type: string
-          example: hex
-        in: query
-        name: enc
-        description: '''hex'' (default) or ''base64'''
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 65536
+            default: 32
+            example: 32
+          in: query
+          name: len
+          description: Number of random bytes (default 32), capped at 65536 (64 KB)
+        - schema:
+            type: string
+            enum:
+              - hex
+              - base64
+            default: hex
+            example: hex
+          in: query
+          name: enc
+          description: >-
+            'hex' (default) or 'base64'. Note: unrecognized values silently
+            fall back to 'hex' rather than returning an error.
   /num:
     get:
-      summary: /num
-      tags: []
-      responses: {}
+      summary: Generate a random number
+      tags:
+        - Random
+      responses:
+        '200':
+          description: Successfully generated random number
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: '49'
+        '400':
+          $ref: '#/components/responses/BadRequest'
       operationId: get-num
       x-stoplight:
         id: vknvnyd2wkmwe
-      description: Generates a random number.
-    parameters:
-      - schema:
-          type: number
-          example: 0
-        in: query
-        name: min
-        description: minimum (default 0)
-      - schema:
-          type: string
-          example: '100'
-        in: query
-        name: max
-        description: maximum (default 100)
+      description: >-
+        Generates a random number. Note: if min is greater than max, no error
+        is thrown — the API currently returns min unchanged.
+      parameters:
+        - schema:
+            type: integer
+            default: 0
+            example: 0
+          in: query
+          name: min
+          description: Minimum (default 0)
+        - schema:
+            type: integer
+            default: 100
+            example: 100
+          in: query
+          name: max
+          description: Maximum (default 100)
   /hash:
     get:
-      summary: /hash
-      tags: []
-      responses: {}
+      summary: Hash a text
+      tags:
+        - Hashing
+      responses:
+        '200':
+          description: Successfully hashed text
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e'
+        '400':
+          $ref: '#/components/responses/BadRequest'
       operationId: get-hash
       x-stoplight:
         id: a61f8wchdqaea
       description: Creates a hash of a text.
-    parameters:
-      - schema:
-          type: string
-          example: Hello%20World
-        in: query
-        name: text
-        description: The text you want to hash
-        required: true
-      - schema:
-          type: string
-          example: SHA-256
-        in: query
-        name: algo
-        description: 'algorithm (SHA-1, SHA-256 (default), SHA-512)'
+      parameters:
+        - schema:
+            type: string
+            example: 'Hello%20World'
+          in: query
+          name: text
+          description: The text you want to hash. Required — omitting it returns a 400.
+          required: true
+        - schema:
+            type: string
+            enum:
+              - SHA-1
+              - SHA-256
+              - SHA-512
+            default: SHA-256
+            example: SHA-256
+          in: query
+          name: algo
+          description: >-
+            Algorithm (SHA-1, SHA-256 (default), SHA-512). Note: not strictly
+            validated — other Node/WebCrypto-supported digest names (e.g. MD5)
+            are currently accepted and computed as well, though unsupported.
 components:
   schemas: {}
   parameters: {}
+  responses:
+    BadRequest:
+      description: >-
+        Invalid or missing parameters. Body is plain text in the format
+        "Fehler: <message>" (German). Note: some messages currently expose
+        raw internal error text (e.g. from typed array or WebCrypto calls)
+        rather than a user-friendly message.
+      content:
+        text/plain:
+          schema:
+            type: string
+          examples:
+            missingRequiredParam:
+              summary: Missing required "text" parameter on /hash
+              value: 'Fehler: ?text= fehlt'
+            invalidLength:
+              summary: Negative length passed to /pass
+              value: 'Fehler: Invalid typed array length: -5'
+            bufferTooLarge:
+              summary: Requested length exceeds the 64 KB buffer cap
+              value: >-
+                Fehler: getRandomValues() only accepts buffers of size <= 64K
+                but provided 3999996 bytes.
