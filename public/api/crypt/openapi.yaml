@@ -2,10 +2,10 @@ openapi: 3.0.0
 x-stoplight:
   id: gpfa0jddkgktt
 info:
-  title: kitsos-crypt-api
+  title: 'Kitsos Crypt API'
   version: '1.0'
   contact:
-    name: Kitsos
+    name: 'Kitsos Support'
     url: 'https://kitsos.net/contact?source=api'
     email: support@services.kitsos.net
   termsOfService: 'https://kitsos.net/terms'
@@ -13,9 +13,12 @@ info:
   description: 'Allows you to create passwords, tokens, random numbers ans hashes via an API.'
 servers:
   - url: 'https://api.kitsos.net/crypt'
-    description: ''
+    description: 'Default API URL'
   - url: 'https://crypt.api.kitsos.net'
-    description: ''
+    description: 'Same function but with a custom domain'
+security:
+  - ApiKeyHeader: []
+  - ApiKeyQuery: []
 paths:
   /pass:
     get:
