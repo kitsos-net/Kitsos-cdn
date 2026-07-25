@@ -1,6 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos Verify API
+  summary: Verify ownership of resources before granting access.
   description: >
     Resource ownership verification (DNS-TXT or magic link) — the gate
     before any resource_grants row gets created. Every route except
@@ -8,8 +9,12 @@ info:
     Clerk session (no API-key auth path — verification is a human,
     in-browser action).
   version: "0.1.0"
+  contact: { name: Kitsos Support, url: "https://kitsos.net/contact", email: support@services.kitsos.net }
+  license: { name: Proprietary, url: "https://kitsos.net/terms" }
 servers:
   - url: https://verify.api.kitsos.net
+    description: Production
+externalDocs: { description: Kitsos API documentation, url: "https://docs.api.kitsos.net" }
 tags:
   - name: Default
   - name: User
@@ -46,6 +51,7 @@ paths:
     get:
       tags: [Default]
       summary: Health check
+      operationId: getVerifyHealth
       security: []
       responses:
         "200": { description: OK }
@@ -54,6 +60,7 @@ paths:
     get:
       tags: [User]
       summary: List your own resources and their verification status
+      operationId: getResources
       responses:
         "200":
           description: OK
@@ -63,6 +70,7 @@ paths:
     post:
       tags: [User]
       summary: Register a resource and start a verification attempt
+      operationId: postResources
       requestBody:
         required: true
         content:
@@ -101,6 +109,7 @@ paths:
     post:
       tags: [User]
       summary: Check a pending DNS-TXT verification via Cloudflare DoH; creates the resource_grants row on success
+      operationId: postResourceCheckDns
       parameters:
         - { name: resourceId, in: path, required: true, schema: { type: string } }
       responses:
@@ -122,6 +131,7 @@ paths:
     get:
       tags: [Default]
       summary: Confirm a magic-link verification (public — the token itself is the credential, no Clerk session required)
+      operationId: getResourceConfirm
       security: []
       parameters:
         - { name: resourceId, in: path, required: true, schema: { type: string } }
@@ -137,6 +147,7 @@ paths:
     get:
       tags: [Admin]
       summary: List all resources across all users (admin only)
+      operationId: getAdminResources
       responses:
         "200": { description: OK }
 
@@ -144,6 +155,7 @@ paths:
     delete:
       tags: [Admin]
       summary: Delete a resource and its verifications/grants (admin only)
+      operationId: deleteAdminResource
       parameters:
         - { name: resourceId, in: path, required: true, schema: { type: string } }
       responses:
