@@ -1,14 +1,19 @@
 openapi: 3.0.3
 info:
   title: Kitsos Mail API
+  summary: Send email and manage templates and webhooks.
   description: >
     Email sending — manual or template-based (POST /send), plus
     user-managed webhooks with dot-notation payload → template
     variable mapping. Webhook triggers are public, gated by a
     per-webhook secret header rather than @kitsos/auth.
   version: "0.1.0"
+  contact: { name: Kitsos Support, url: "https://kitsos.net/contact", email: support@services.kitsos.net }
+  license: { name: Proprietary, url: "https://kitsos.net/terms" }
 servers:
   - url: https://mail.api.kitsos.net
+    description: Production
+externalDocs: { description: Kitsos API documentation, url: "https://docs.api.kitsos.net" }
 tags:
   - name: Default
   - name: User
@@ -52,6 +57,7 @@ paths:
     get:
       tags: [Default]
       summary: Health check
+      operationId: getMailHealth
       responses:
         "200": { description: OK }
 
@@ -59,6 +65,7 @@ paths:
     post:
       tags: [User]
       summary: Send an email, manually or via a saved template
+      operationId: postSend
       security: [{ apiKey: [] }]
       requestBody:
         required: true
@@ -85,6 +92,7 @@ paths:
     post:
       tags: [Webhooks]
       summary: Trigger a webhook — renders its template with the mapped payload and sends
+      operationId: postWebhookTrigger
       security: [{ webhookSecret: [] }]
       parameters:
         - { name: webhookId, in: path, required: true, schema: { type: string } }
@@ -106,12 +114,14 @@ paths:
     get:
       tags: [User]
       summary: List your own templates
+      operationId: getTemplates
       security: [{ apiKey: [] }]
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Template' } } } } }
     post:
       tags: [User]
       summary: Create a template
+      operationId: postTemplates
       security: [{ apiKey: [] }]
       requestBody:
         required: true
@@ -131,6 +141,7 @@ paths:
     patch:
       tags: [User]
       summary: Update a template's URL or variables (invalidates the 1h HTML cache)
+      operationId: patchTemplate
       security: [{ apiKey: [] }]
       parameters:
         - { name: templateId, in: path, required: true, schema: { type: string } }
@@ -147,6 +158,7 @@ paths:
     delete:
       tags: [User]
       summary: Delete a template
+      operationId: deleteTemplate
       security: [{ apiKey: [] }]
       parameters:
         - { name: templateId, in: path, required: true, schema: { type: string } }
@@ -157,12 +169,14 @@ paths:
     get:
       tags: [User]
       summary: List your own webhooks (secret never included)
+      operationId: getWebhooks
       security: [{ apiKey: [] }]
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Webhook' } } } } }
     post:
       tags: [User]
       summary: Create a webhook (returns the secret once)
+      operationId: postWebhooks
       security: [{ apiKey: [] }]
       requestBody:
         required: true
@@ -196,6 +210,7 @@ paths:
     patch:
       tags: [User]
       summary: Update a webhook's template, addresses, or mapping
+      operationId: patchWebhook
       security: [{ apiKey: [] }]
       parameters:
         - { name: webhookId, in: path, required: true, schema: { type: string } }
@@ -214,6 +229,7 @@ paths:
     delete:
       tags: [User]
       summary: Delete a webhook
+      operationId: deleteWebhook
       security: [{ apiKey: [] }]
       parameters:
         - { name: webhookId, in: path, required: true, schema: { type: string } }
