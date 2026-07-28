@@ -6,7 +6,7 @@ info:
     Create and manage your own API keys and request usage-limit increases.
     Administrative platform endpoints are deliberately documented separately
     in the Kitsos Keys Admin API.
-  version: "0.1.0"
+  version: "1.0.0"
   contact:
     name: Kitsos Support
     url: https://kitsos.net/contact
@@ -15,7 +15,7 @@ info:
     name: Proprietary
     url: https://kitsos.net/terms
 servers:
-  - url: https://keys.api.kitsos.net
+  - url: https://keys.api.kitsos.net/v1
     description: Production
 externalDocs:
   description: Kitsos API documentation
@@ -26,6 +26,15 @@ tags:
   - name: Self-service
     description: Manage your Kitsos account and API keys.
 components:
+  parameters:
+    PageLimit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 100, minimum: 1, maximum: 500 }
+    PageOffset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0, minimum: 0, maximum: 100000 }
   securitySchemes:
     clerkSession:
       type: http
@@ -39,9 +48,14 @@ components:
         id: { type: string }
         user_id: { type: string }
         app_id: { type: string }
-        name: { type: string, nullable: true }
+        name: { type: string, maxLength: 100, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
         status: { type: string, enum: [active, revoked, expired] }
-        scopes: { type: array, items: { type: string } }
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { type: string, minLength: 1, maxLength: 100 }
         expires_at: { type: integer, nullable: true }
         last_used_at: { type: integer, nullable: true }
         created_at: { type: integer }
@@ -55,6 +69,19 @@ components:
       type: object
       properties:
         error: { type: string }
+    EffectiveLimit:
+      type: object
+      required: [appId, limitType, limitValue, currentValue, remaining, maximumValue, daily]
+      properties:
+        appId: { type: string }
+        limitType:
+          type: string
+          enum: [emails_per_day, mail_templates, mail_webhooks, hme_aliases, verified_resources, verification_attempts_per_day, api_keys]
+        limitValue: { type: integer, minimum: 1 }
+        currentValue: { type: integer, minimum: 0 }
+        remaining: { type: integer, minimum: 0 }
+        maximumValue: { type: integer, minimum: 1 }
+        daily: { type: boolean }
 security:
   - clerkSession: []
 paths:
@@ -81,6 +108,9 @@ paths:
       summary: List own API keys
       description: Lists API keys owned by the currently signed-in user.
       operationId: getMeApiKeys
+      parameters:
+        - { $ref: '#/components/parameters/PageLimit' }
+        - { $ref: '#/components/parameters/PageOffset' }
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ApiKey' } } } } }
     post:
@@ -95,12 +125,18 @@ paths:
               type: object
               required: [appId, scopes]
               properties:
-                appId: { type: string }
-                name: { type: string }
-                scopes: { type: array, items: { type: string } }
+                appId: { type: string, minLength: 1, maxLength: 100 }
+                name: { type: string, minLength: 1, maxLength: 100 }
+                description: { type: string, maxLength: 2000 }
+                scopes:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string, minLength: 1, maxLength: 100 }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/ApiKeyCreated' } } } }
         "403": { description: None of the requested scopes are allowed by your policy, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "429": { description: API-key storage or daily creation limit exceeded, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /me/api-keys/{keyId}:
     delete:
       tags: [Self-service]
@@ -115,6 +151,9 @@ paths:
       tags: [Self-service]
       summary: List your own limit increase requests
       operationId: getMeLimitIncreaseRequests
+      parameters:
+        - { $ref: '#/components/parameters/PageLimit' }
+        - { $ref: '#/components/parameters/PageOffset' }
       responses:
         "200": { description: OK }
     post:
@@ -129,10 +168,28 @@ paths:
               type: object
               required: [appId, limitType, requestedValue]
               properties:
-                appId: { type: string }
-                limitType: { type: string }
-                requestedValue: { type: integer }
-                reason: { type: string }
+                appId: { type: string, minLength: 1, maxLength: 100 }
+                limitType:
+                  type: string
+                  enum: [emails_per_day, mail_templates, mail_webhooks, hme_aliases, verified_resources, verification_attempts_per_day, api_keys]
+                requestedValue: { type: integer, minimum: 1 }
+                reason: { type: string, maxLength: 2000 }
       responses:
         "201": { description: Created }
+        "409": { description: A pending request already exists for this limit type }
+        "429": { description: Five pending requests or the daily request-creation limit has been reached }
 
+  /me/limits:
+    get:
+      tags: [Self-service]
+      summary: List effective usage limits
+      description: Returns effective limits, current usage, and remaining capacity.
+      operationId: getMeLimits
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EffectiveLimit' }
