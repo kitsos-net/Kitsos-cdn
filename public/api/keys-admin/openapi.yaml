@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Kitsos Keys Admin API
   description: Administrative API for managing the Kitsos platform. Every endpoint except the health check requires an administrator Clerk session.
-  version: "0.1.0"
+  version: "1.0.0"
   contact:
     name: Kitsos Support
     url: https://kitsos.net/contact
@@ -11,7 +11,7 @@ info:
     name: Proprietary
     url: https://kitsos.net/terms
 servers:
-  - url: https://keys.api.kitsos.net
+  - url: https://keys.api.kitsos.net/v1
     description: Production
 tags:
   - name: Default
@@ -29,7 +29,7 @@ components:
     App: { type: object, properties: { id: { type: string }, name: { type: string }, description: { type: string, nullable: true }, environment: { type: string, enum: [production, staging, dev] }, created_at: { type: integer } } }
     Group: { type: object, properties: { id: { type: string }, name: { type: string }, description: { type: string, nullable: true } } }
     Policy: { type: object, properties: { id: { type: string }, appId: { type: string }, subjectType: { type: string, enum: [user, group] }, subjectId: { type: string }, scopes: { type: array, items: { type: string } } } }
-    ApiKey: { type: object, properties: { id: { type: string }, user_id: { type: string }, app_id: { type: string }, name: { type: string, nullable: true }, status: { type: string, enum: [active, revoked, expired] }, scopes: { type: array, items: { type: string } }, expires_at: { type: integer, nullable: true }, last_used_at: { type: integer, nullable: true }, created_at: { type: integer } } }
+    ApiKey: { type: object, properties: { id: { type: string }, user_id: { type: string }, app_id: { type: string }, name: { type: string, maxLength: 100, nullable: true }, description: { type: string, maxLength: 2000, nullable: true }, status: { type: string, enum: [active, revoked, expired] }, scopes: { type: array, minItems: 1, maxItems: 100, items: { type: string, minLength: 1, maxLength: 100 } }, expires_at: { type: integer, nullable: true }, last_used_at: { type: integer, nullable: true }, created_at: { type: integer } } }
     ApiKeyCreated:
       allOf:
         - $ref: '#/components/schemas/ApiKey'
@@ -79,7 +79,7 @@ paths:
     delete: { tags: [Admin], summary: Delete a policy, parameters: [{ name: policyId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: No Content } } }
   /admin/api-keys:
     get: { tags: [Admin], summary: List API keys (any user), parameters: [{ name: userId, in: query, schema: { type: string } }], responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ApiKey' } } } } } } }
-    post: { tags: [Admin], summary: Create an API key for any user, requestBody: { required: true, content: { application/json: { schema: { type: object, required: [userId, appId, scopes], properties: { userId: { type: string }, appId: { type: string }, name: { type: string }, scopes: { type: array, items: { type: string } }, expiresAt: { type: integer } } } } } }, responses: { "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/ApiKeyCreated' } } } } } }
+    post: { tags: [Admin], summary: Create an API key for any user, description: API-key names are limited to 100 characters, descriptions to 2,000 characters, and scopes to 100 values of at most 100 characters each. expiresAt must be a future Unix timestamp no more than ten years ahead., requestBody: { required: true, content: { application/json: { schema: { type: object, required: [userId, appId, scopes], properties: { userId: { type: string, minLength: 1, maxLength: 100 }, appId: { type: string, minLength: 1, maxLength: 100 }, name: { type: string, minLength: 1, maxLength: 100 }, description: { type: string, maxLength: 2000 }, scopes: { type: array, minItems: 1, maxItems: 100, items: { type: string, minLength: 1, maxLength: 100 } }, expiresAt: { type: integer } } } } } }, responses: { "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/ApiKeyCreated' } } } }, "429": { description: API-key storage or daily creation limit exceeded } } }
   /admin/api-keys/{keyId}:
     delete: { tags: [Admin], summary: Revoke an API key, parameters: [{ name: keyId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: No Content } } }
   /admin/usage-limits:
@@ -93,4 +93,3 @@ paths:
     post: { tags: [Admin], summary: Deny a limit increase request, parameters: [{ name: reqId, in: path, required: true, schema: { type: string } }], responses: { "204": { description: No Content } } }
   /admin/audit-log:
     get: { tags: [Admin], summary: List audit log entries, parameters: [{ name: userId, in: query, schema: { type: string } }, { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }], responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AuditLogEntry' } } } } } } }
-

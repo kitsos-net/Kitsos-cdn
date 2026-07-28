@@ -6,11 +6,11 @@ info:
     Create and manage random forwarding aliases at hme.kitsos.net.
     A forwarding destination must first be verified as an email_address
     resource grant with the hme:receive scope.
-  version: "0.1.0"
+  version: "1.0.0"
   contact: { name: Kitsos Support, url: "https://kitsos.net/contact", email: support@services.kitsos.net }
   license: { name: Proprietary, url: "https://kitsos.net/terms" }
 servers:
-  - url: https://hme.api.kitsos.net
+  - url: https://hme.api.kitsos.net/v1
     description: Production
 externalDocs: { description: Kitsos API documentation, url: "https://docs.api.kitsos.net" }
 
@@ -21,6 +21,15 @@ tags:
     description: Manage your Hide My Email forwarding aliases.
 
 components:
+  parameters:
+    PageLimit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 100, minimum: 1, maximum: 500 }
+    PageOffset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0, minimum: 0, maximum: 100000 }
   securitySchemes:
     apiKey:
       type: http
@@ -45,9 +54,11 @@ components:
         forward_to:
           type: string
           format: email
+          maxLength: 320
         label:
           type: string
           nullable: true
+          maxLength: 200
           example: Newsletters
         status:
           type: string
@@ -71,11 +82,12 @@ components:
         forwardTo:
           type: string
           format: email
+          maxLength: 320
           description: A verified email_address resource grant with hme:receive scope.
         label:
           type: string
           nullable: true
-          maxLength: 255
+          maxLength: 200
           example: Newsletters
     CreateAliasResponse:
       type: object
@@ -101,10 +113,11 @@ components:
         label:
           type: string
           nullable: true
-          maxLength: 255
+          maxLength: 200
         forwardTo:
           type: string
           format: email
+          maxLength: 320
           description: A verified email_address resource grant with hme:receive scope.
     Error:
       type: object
@@ -151,6 +164,9 @@ paths:
       tags: [Aliases]
       summary: List your aliases
       operationId: getAliases
+      parameters:
+        - { $ref: '#/components/parameters/PageLimit' }
+        - { $ref: '#/components/parameters/PageOffset' }
       responses:
         "200":
           description: Aliases owned by the authenticated API-key user, newest first.
@@ -182,6 +198,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        "413": { description: Request body exceeds 64 KiB. }
+        "429": { description: Alias storage or daily creation limit exceeded. }
         "500":
           description: A unique alias could not be generated after several attempts.
           content:
@@ -220,4 +238,3 @@ paths:
       responses:
         "204": { description: Alias deleted. }
         "401": { $ref: '#/components/responses/Unauthorized' }
-
