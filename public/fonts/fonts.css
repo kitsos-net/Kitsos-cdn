@@ -1,0 +1,96 @@
+@font-face {
+  font-family: "Inter";
+  src: url("https://cdn.kitsos.net/fonts/inter-latin.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range:
+    U+0000-024F,
+    U+0300-036F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F,
+    U+2190-21FF,
+    U+2212,
+    U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("https://cdn.kitsos.net/fonts/inter-greek.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range:
+    U+0370-03FF,
+    U+1F00-1FFF;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("https://cdn.kitsos.net/fonts/inter-italic-latin.woff2")
+    format("woff2");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range:
+    U+0000-024F,
+    U+0300-036F,
+    U+1E00-1EFF,
+    U+2000-206F,
+    U+20A0-20CF,
+    U+2100-214F,
+    U+2190-21FF,
+    U+2212,
+    U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("https://cdn.kitsos.net/fonts/inter-italic-greek.woff2")
+    format("woff2");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range:
+    U+0370-03FF,
+    U+1F00-1FFF;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("https://cdn.kitsos.net/fonts/geist-mono.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+html {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  font-optical-sizing: auto;
+}
+
+code,
+pre,
+kbd,
+samp,
+.technical-value {
+  font-family:
+    "Geist Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+}
