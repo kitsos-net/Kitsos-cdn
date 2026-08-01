@@ -1,0 +1,259 @@
+openapi: 3.0.3
+info:
+  title: Kitsos Mail API
+  summary: Send email and manage templates and webhooks.
+  description: >
+    Email sending — manual or template-based (POST /send), plus
+    user-managed webhooks with dot-notation payload → template
+    variable mapping. Webhook triggers are public, gated by a
+    per-webhook secret header rather than @kitsos/auth. Direct send bodies
+    are capped at 4 MiB; HTML and text fields at 3 MiB each. Template source
+    is capped at 3 MiB and rendered/outbound messages at 4 MiB.
+  version: "1.0.0"
+  contact: { name: Kitsos Support, url: "https://kitsos.net/contact", email: support@services.kitsos.net }
+  license: { name: Proprietary, url: "https://kitsos.net/terms" }
+servers:
+  - url: https://mail.api.kitsos.net/v1
+    description: Production
+externalDocs: { description: Kitsos API documentation, url: "https://docs.api.kitsos.net" }
+tags:
+  - name: Default
+  - name: User
+  - name: Webhooks
+
+components:
+  parameters:
+    PageLimit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 100, minimum: 1, maximum: 500 }
+    PageOffset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0, minimum: 0, maximum: 100000 }
+  securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+      description: kitsos_... API key with the mail:send or mail:manage scope, validated by @kitsos/auth.
+    webhookSecret:
+      type: apiKey
+      in: header
+      name: X-Webhook-Secret
+      description: Per-webhook secret, returned once at webhook creation.
+  schemas:
+    Template:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 100 }
+        url: { type: string, format: uri, maxLength: 2048, description: "HTTPS HTML source fetched at send time, cached 1h; response body max 3 MiB" }
+        variables: { type: array, maxItems: 100, items: { type: string, maxLength: 100 } }
+    Webhook:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 100 }
+        template_id: { type: string, maxLength: 100 }
+        from_address: { type: string, format: email, maxLength: 320 }
+        to_addresses: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: email, maxLength: 320 } }
+        mapping: { type: object, maxProperties: 200, additionalProperties: { type: string, maxLength: 500 } }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+paths:
+  /health:
+    get:
+      tags: [Default]
+      summary: Health check
+      operationId: getMailHealth
+      responses:
+        "200": { description: OK }
+
+  /send:
+    post:
+      tags: [User]
+      summary: Send an email, manually or via a saved template
+      operationId: postSend
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to, subject]
+              properties:
+                from: { type: string, format: email, maxLength: 320, description: "Must be a granted resource_type=email_address for this key's user" }
+                to: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: email, maxLength: 320 } }
+                subject: { type: string, minLength: 1, maxLength: 998 }
+                template: { type: string, minLength: 1, maxLength: 100, description: "Template id — if set, html/text are ignored and rendered from the template instead" }
+                data: { type: object, maxProperties: 200, additionalProperties: { type: string, maxLength: 65536 } }
+                html: { type: string, maxLength: 3145728 }
+                text: { type: string, maxLength: 3145728 }
+      responses:
+        "200": { description: Sent }
+        "403":
+          description: from address not granted
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        "413": { description: Request body exceeds 4 MiB }
+        "429": { description: Unified daily email-recipient limit exceeded }
+
+  /webhook/{webhookId}:
+    post:
+      tags: [Webhooks]
+      summary: Trigger a webhook — renders its template with the mapped payload and sends
+      operationId: postWebhookTrigger
+      security: [{ webhookSecret: [] }]
+      parameters:
+        - { name: webhookId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        description: JSON payload up to 256 KiB, resolved against the webhook's dot-notation mapping
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Sent }
+        "401":
+          description: Missing or invalid X-Webhook-Secret
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        "429":
+          description: Daily email limit exceeded for this webhook's owner
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /templates:
+    get:
+      tags: [User]
+      summary: List your own templates
+      operationId: getTemplates
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/PageLimit' }
+        - { $ref: '#/components/parameters/PageOffset' }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Template' } } } } }
+    post:
+      tags: [User]
+      summary: Create a template
+      operationId: postTemplates
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, variables]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                url: { type: string, format: uri, maxLength: 2048 }
+                variables: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 100 } }
+      responses:
+        "201": { description: Created }
+        "413": { description: Metadata body exceeds 64 KiB }
+        "429": { description: Template storage or daily creation limit exceeded }
+
+  /templates/{templateId}:
+    patch:
+      tags: [User]
+      summary: Update a template's URL or variables (invalidates the 1h HTML cache)
+      operationId: patchTemplate
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: templateId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, format: uri, maxLength: 2048 }
+                variables: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 100 } }
+      responses:
+        "204": { description: No Content }
+    delete:
+      tags: [User]
+      summary: Delete a template
+      operationId: deleteTemplate
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: templateId, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: No Content }
+
+  /webhooks:
+    get:
+      tags: [User]
+      summary: List your own webhooks (secret never included)
+      operationId: getWebhooks
+      security: [{ apiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/PageLimit' }
+        - { $ref: '#/components/parameters/PageOffset' }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Webhook' } } } } }
+    post:
+      tags: [User]
+      summary: Create a webhook (returns the secret once)
+      operationId: postWebhooks
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, templateId, fromAddress, toAddresses, mapping]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                templateId: { type: string, minLength: 1, maxLength: 100 }
+                fromAddress: { type: string, format: email, maxLength: 320, description: "Must be a granted resource_type=email_address" }
+                toAddresses: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: email, maxLength: 320 } }
+                mapping: { type: object, maxProperties: 200, additionalProperties: { type: string, maxLength: 500 }, description: "{templateVar: 'dot.path.in.payload'}" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  secret: { type: string, description: "shown only here" }
+                  url: { type: string }
+        "403":
+          description: fromAddress not granted
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        "429": { description: Webhook storage or daily creation limit exceeded }
+
+  /webhooks/{webhookId}:
+    patch:
+      tags: [User]
+      summary: Update a webhook's template, addresses, or mapping
+      operationId: patchWebhook
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: webhookId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                templateId: { type: string, minLength: 1, maxLength: 100 }
+                fromAddress: { type: string, format: email, maxLength: 320 }
+                toAddresses: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: email, maxLength: 320 } }
+                mapping: { type: object, maxProperties: 200, additionalProperties: { type: string, maxLength: 500 } }
+      responses:
+        "204": { description: No Content }
+    delete:
+      tags: [User]
+      summary: Delete a webhook
+      operationId: deleteWebhook
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: webhookId, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: No Content }

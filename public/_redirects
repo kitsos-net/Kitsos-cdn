@@ -1,0 +1,6 @@
+/api/keys/latest/openapi.yaml /api/keys/openapi.yaml?latest 302
+/api/keys-admin/latest/openapi.yaml /api/keys-admin/openapi.yaml?latest 302
+/api/mail/latest/openapi.yaml /api/mail/openapi.yaml?latest 302
+/api/verify/latest/openapi.yaml /api/verify/openapi.yaml?latest 302
+/api/hme/latest/openapi.yaml /api/hme/openapi.yaml?latest 302
+/api/utility/latest/openapi.yaml /api/utility/openapi.yaml?latest 302
