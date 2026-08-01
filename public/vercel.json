@@ -1,5 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    { "source": "/api/keys/latest/openapi.yaml", "destination": "/api/keys/openapi.yaml?latest", "permanent": false },
+    { "source": "/api/keys-admin/latest/openapi.yaml", "destination": "/api/keys-admin/openapi.yaml?latest", "permanent": false },
+    { "source": "/api/mail/latest/openapi.yaml", "destination": "/api/mail/openapi.yaml?latest", "permanent": false },
+    { "source": "/api/verify/latest/openapi.yaml", "destination": "/api/verify/openapi.yaml?latest", "permanent": false },
+    { "source": "/api/hme/latest/openapi.yaml", "destination": "/api/hme/openapi.yaml?latest", "permanent": false },
+    { "source": "/api/utility/latest/openapi.yaml", "destination": "/api/utility/openapi.yaml?latest", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/(.*)",
