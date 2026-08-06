@@ -242,9 +242,8 @@ class HAAccessInfoCard extends HTMLElement {
   getGridOptions() {
     return {
       rows: 2,
-      columns: 6,
+      columns: full,
       min_rows: 2,
-      min_columns: 3,
     };
   }
 
