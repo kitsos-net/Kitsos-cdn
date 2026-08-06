@@ -241,8 +241,8 @@ class HAAccessInfoCard extends HTMLElement {
 
   getGridOptions() {
     return {
-      rows: 2,
       columns: full,
+      rows: 2,
       min_rows: 2,
     };
   }
@@ -286,7 +286,7 @@ class HAAccessInfoCard extends HTMLElement {
         mode: "Lokal",
         detail: currentHost,
         badge: "LAN",
-        icon: "mdi:home-lan",
+        icon: "mdi:home-connect",
         tone: "local",
       });
 
