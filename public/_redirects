@@ -3,4 +3,5 @@
 /api/mail/latest/openapi.yaml /api/mail/openapi.yaml?latest 302
 /api/verify/latest/openapi.yaml /api/verify/openapi.yaml?latest 302
 /api/hme/latest/openapi.yaml /api/hme/openapi.yaml?latest 302
+/api/dns-hosting/latest/openapi.yaml /api/dns-hosting/openapi.yaml?latest 302
 /api/utility/latest/openapi.yaml /api/utility/openapi.yaml?latest 302

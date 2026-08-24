@@ -1,0 +1,363 @@
+openapi: 3.0.3
+info:
+  title: Kitsos DNS Hosting API
+  version: "1.0.0"
+  description: >
+    Host verified Primary DNS zones on the Kitsos Technitium cluster. Every
+    zone remains a member of dns-hosting.catalog.dns.kitsos.net. Request
+    bodies are limited to 32 KiB and the API deliberately exposes only a
+    bounded set of record types and fixed DNSSEC parameters.
+  contact:
+    name: Kitsos
+    url: https://kitsos.net/contact
+    email: support@services.kitsos.net
+  termsOfService: https://kitsos.net/terms
+  license:
+    name: Proprietary
+    url: https://kitsos.net/terms
+servers:
+  - url: https://dns.api.kitsos.net/v1
+
+externalDocs:
+  description: Kitsos API documentation
+  url: https://docs.api.kitsos.net/dns-hosting
+
+tags:
+  - name: Default
+    description: Service health.
+  - name: Zones
+    description: Verified Primary zones attached to the Kitsos Catalog zone.
+  - name: Records
+    description: DNS records managed inside an owned hosted zone.
+  - name: DNSSEC
+    description: Fixed-policy DNSSEC signing and parent DS information.
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: A Kitsos API key or policy-scoped Clerk session.
+  parameters:
+    ZoneId:
+      name: zoneId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RecordId:
+      name: recordId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 100, minimum: 1, maximum: 500 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0, minimum: 0, maximum: 100000 }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    Zone:
+      type: object
+      required: [id, name, catalogZone, status, dnssecStatus, recordCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 253, example: example.com }
+        catalogZone: { type: string, example: dns-hosting.catalog.dns.kitsos.net }
+        status: { type: string, enum: [provisioning, active, error, deleting] }
+        dnssecStatus: { type: string, enum: [unsigned, signing, signed, unsigning, unknown] }
+        recordCount: { type: integer, minimum: 0 }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+    Record:
+      type: object
+      required: [id, zoneId, name, type, ttl, data, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        zoneId: { type: string, format: uuid }
+        name: { type: string, maxLength: 253 }
+        type: { type: string, enum: [A, AAAA, NS, CNAME, MX, TXT, SRV, CAA] }
+        ttl: { type: integer, minimum: 60, maximum: 604800 }
+        data: { type: object, additionalProperties: true }
+        status: { type: string, enum: [provisioning, active, error] }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+    RecordInput:
+      oneOf:
+        - $ref: "#/components/schemas/AddressRecordInput"
+        - $ref: "#/components/schemas/TargetRecordInput"
+        - $ref: "#/components/schemas/MxRecordInput"
+        - $ref: "#/components/schemas/TxtRecordInput"
+        - $ref: "#/components/schemas/SrvRecordInput"
+        - $ref: "#/components/schemas/CaaRecordInput"
+      discriminator: { propertyName: type }
+    RecordBase:
+      type: object
+      required: [name, type, ttl, data]
+      properties:
+        name:
+          type: string
+          maxLength: 253
+          description: Use @ for the zone apex, a relative owner, or a fully qualified owner inside the zone.
+        ttl: { type: integer, minimum: 60, maximum: 604800 }
+    AddressRecordInput:
+      allOf:
+        - $ref: "#/components/schemas/RecordBase"
+        - type: object
+          properties:
+            type: { type: string, enum: [A, AAAA] }
+            data:
+              type: object
+              required: [address]
+              additionalProperties: false
+              properties: { address: { type: string } }
+    TargetRecordInput:
+      allOf:
+        - $ref: "#/components/schemas/RecordBase"
+        - type: object
+          properties:
+            type: { type: string, enum: [NS, CNAME] }
+            data:
+              type: object
+              required: [target]
+              additionalProperties: false
+              properties: { target: { type: string, maxLength: 253 } }
+    MxRecordInput:
+      allOf:
+        - $ref: "#/components/schemas/RecordBase"
+        - type: object
+          properties:
+            type: { type: string, enum: [MX] }
+            data:
+              type: object
+              required: [priority, exchange]
+              additionalProperties: false
+              properties:
+                priority: { type: integer, minimum: 0, maximum: 65535 }
+                exchange: { type: string, maxLength: 253 }
+    TxtRecordInput:
+      allOf:
+        - $ref: "#/components/schemas/RecordBase"
+        - type: object
+          properties:
+            type: { type: string, enum: [TXT] }
+            data:
+              oneOf:
+                - type: object
+                  required: [text]
+                  additionalProperties: false
+                  properties:
+                    text: { type: string, maxLength: 2048 }
+                - type: object
+                  required: [strings]
+                  additionalProperties: false
+                  properties:
+                    strings:
+                      type: array
+                      minItems: 1
+                      maxItems: 16
+                      items: { type: string, maxLength: 255 }
+    SrvRecordInput:
+      allOf:
+        - $ref: "#/components/schemas/RecordBase"
+        - type: object
+          properties:
+            type: { type: string, enum: [SRV] }
+            data:
+              type: object
+              required: [priority, weight, port, target]
+              additionalProperties: false
+              properties:
+                priority: { type: integer, minimum: 0, maximum: 65535 }
+                weight: { type: integer, minimum: 0, maximum: 65535 }
+                port: { type: integer, minimum: 0, maximum: 65535 }
+                target: { type: string, maxLength: 253 }
+    CaaRecordInput:
+      allOf:
+        - $ref: "#/components/schemas/RecordBase"
+        - type: object
+          properties:
+            type: { type: string, enum: [CAA] }
+            data:
+              type: object
+              required: [flags, tag, value]
+              additionalProperties: false
+              properties:
+                flags: { type: integer, minimum: 0, maximum: 255 }
+                tag: { type: string, pattern: "^[A-Za-z0-9]{1,15}$" }
+                value: { type: string, maxLength: 255 }
+
+paths:
+  /health:
+    get:
+      operationId: getDnsHostingHealth
+      tags: [Default]
+      summary: Worker health check
+      security: []
+      responses:
+        "200": { description: OK }
+
+  /zones:
+    get:
+      operationId: listDnsZones
+      tags: [Zones]
+      summary: List the caller's hosted zones
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200":
+          description: Hosted zones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Zone" } }
+    post:
+      operationId: createDnsZone
+      tags: [Zones]
+      summary: Create a verified Primary zone in the Kitsos Catalog zone
+      description: The default account quota is 5 zones and can be increased through the Kitsos limits system.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              additionalProperties: false
+              properties:
+                name: { type: string, maxLength: 253, example: example.com }
+      responses:
+        "201": { description: Zone created }
+        "400": { description: Invalid or reserved zone name }
+        "403": { description: Current global zone ownership verification required }
+        "409": { description: Zone is already hosted }
+        "429": { description: Zone quota exceeded }
+        "502": { description: Technitium provisioning failed or is indeterminate }
+
+  /zones/{zoneId}:
+    parameters:
+      - { $ref: "#/components/parameters/ZoneId" }
+    get:
+      operationId: getDnsZone
+      tags: [Zones]
+      summary: Get a hosted zone
+      responses:
+        "200": { description: Zone }
+        "404": { description: Not found }
+    delete:
+      operationId: deleteDnsZone
+      tags: [Zones]
+      summary: Delete a zone and all locally tracked records
+      responses:
+        "204": { description: Deleted or already absent }
+        "502": { description: Technitium deletion failed; local ownership is retained }
+
+  /zones/{zoneId}/reconcile:
+    parameters:
+      - { $ref: "#/components/parameters/ZoneId" }
+    post:
+      operationId: reconcileDnsZone
+      tags: [Zones]
+      summary: Reconcile upstream state and restore required Catalog membership
+      responses:
+        "200": { description: Reconciled zone }
+        "502": { description: Upstream state could not be reconciled }
+
+  /zones/{zoneId}/records:
+    parameters:
+      - { $ref: "#/components/parameters/ZoneId" }
+    get:
+      operationId: listDnsRecords
+      tags: [Records]
+      summary: List locally managed records in a zone
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200":
+          description: Records
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Record" } }
+    post:
+      operationId: createDnsRecord
+      tags: [Records]
+      summary: Add a DNS record
+      description: The default quota is 200 records per zone and can be increased through the Kitsos limits system.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordInput" }
+      responses:
+        "201": { description: Record created }
+        "400": { description: Invalid, unsafe or oversized record }
+        "409": { description: Duplicate record or inactive zone }
+        "429": { description: Per-zone, total or churn quota exceeded }
+        "502": { description: Technitium provisioning failed or is indeterminate }
+
+  /zones/{zoneId}/records/{recordId}:
+    parameters:
+      - { $ref: "#/components/parameters/ZoneId" }
+      - { $ref: "#/components/parameters/RecordId" }
+    patch:
+      operationId: updateDnsRecordTtl
+      tags: [Records]
+      summary: Update a record TTL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ttl]
+              additionalProperties: false
+              properties: { ttl: { type: integer, minimum: 60, maximum: 604800 } }
+      responses:
+        "200": { description: Updated record }
+        "400": { description: Invalid update }
+        "502": { description: Technitium update failed }
+    delete:
+      operationId: deleteDnsRecord
+      tags: [Records]
+      summary: Delete a record
+      responses:
+        "204": { description: Deleted or already absent }
+        "502": { description: Technitium deletion failed; local ownership is retained }
+
+  /zones/{zoneId}/dnssec:
+    parameters:
+      - { $ref: "#/components/parameters/ZoneId" }
+    get:
+      operationId: getDnssecStatus
+      tags: [DNSSEC]
+      summary: Get DNSSEC state and parent DS information
+      responses:
+        "200": { description: DNSSEC state }
+    post:
+      operationId: signDnsZone
+      tags: [DNSSEC]
+      summary: Sign a zone using fixed ECDSA P-256/NSEC3 parameters
+      description: The default quota is 2 signed zones and can be increased through the Kitsos limits system.
+      responses:
+        "201": { description: Zone signed; returns parent DS information }
+        "409": { description: Zone or DNSSEC state is not ready }
+        "429": { description: DNSSEC-signed-zone quota exceeded }
+        "502": { description: DNSSEC signing failed or is indeterminate }
+    delete:
+      operationId: unsignDnsZone
+      tags: [DNSSEC]
+      summary: Unsign a zone
+      responses:
+        "204": { description: Zone unsigned or already unsigned }
+        "409": { description: DNSSEC state is not ready }
+        "502": { description: DNSSEC unsigning failed; state is marked unknown }
