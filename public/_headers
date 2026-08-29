@@ -55,6 +55,14 @@
   Content-Type: application/yaml; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
+/api/keys/openapi-1.1.0.yaml
+  Content-Type: application/yaml; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
+/api/keys-admin/openapi-1.1.0.yaml
+  Content-Type: application/yaml; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
 /404.html
   Cache-Control: no-store
   Content-Type: text/html; charset=utf-8
