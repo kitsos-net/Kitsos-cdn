@@ -1,3 +1,5 @@
+/ https://kitsos.net/cdn 302
+
 /api/keys/latest/openapi.yaml /api/keys/openapi.yaml?latest 302
 /api/keys-admin/latest/openapi.yaml /api/keys-admin/openapi.yaml?latest 302
 /api/mail/latest/openapi.yaml /api/mail/openapi.yaml?latest 302
