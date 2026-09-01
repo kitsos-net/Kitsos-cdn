@@ -41,30 +41,21 @@
   Content-Type: application/yaml; charset=utf-8
 
 /api/*/openapi.yaml
-  Content-Type: application/yaml; charset=utf-8
-  Cache-Control: no-store, max-age=0, must-revalidate
-
-/api/*/latest/openapi.yaml
   Cache-Control: no-store, max-age=0, must-revalidate
 
 /api/*/openapi-1.0.0.yaml
-  Content-Type: application/yaml; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
 /api/dns-hosting/openapi-1.0.1.yaml
-  Content-Type: application/yaml; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
 /api/keys-admin/openapi-1.0.1.yaml
-  Content-Type: application/yaml; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
 /api/keys/openapi-1.1.0.yaml
-  Content-Type: application/yaml; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
 /api/keys-admin/openapi-1.1.0.yaml
-  Content-Type: application/yaml; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
 /404.html
