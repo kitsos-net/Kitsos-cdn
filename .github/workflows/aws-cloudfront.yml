@@ -35,10 +35,118 @@ jobs:
           role-session-name: KitsosCdnGitHubDeploy
 
       - name: Sync public files to S3
+        env:
+          BUCKET: ${{ vars.AWS_S3_BUCKET }}
         run: |
-          aws s3 sync public/ "s3://${{ vars.AWS_S3_BUCKET }}/" \
+          set -euo pipefail
+
+          # Base sync + deleted files entfernen
+          aws s3 sync public/ "s3://${BUCKET}/" \
             --delete \
             --only-show-errors
+
+          # WOFF2 fonts: 7 days
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.woff2" \
+            --content-type "font/woff2" \
+            --cache-control "public, max-age=604800, stale-while-revalidate=86400" \
+            --only-show-errors
+
+          # CSS: 1 hour
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.css" \
+            --content-type "text/css; charset=utf-8" \
+            --cache-control "public, max-age=3600, stale-while-revalidate=86400" \
+            --only-show-errors
+
+          # JavaScript: 1 day
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.js" \
+            --content-type "application/javascript; charset=utf-8" \
+            --cache-control "public, max-age=86400, stale-while-revalidate=86400" \
+            --only-show-errors
+
+          # SVG: 7 days
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.svg" \
+            --content-type "image/svg+xml" \
+            --cache-control "public, max-age=604800, stale-while-revalidate=86400" \
+            --only-show-errors
+
+          # Other images: 7 days
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.png" \
+            --include "*.webp" \
+            --include "*.avif" \
+            --include "*.ico" \
+            --cache-control "public, max-age=604800, stale-while-revalidate=86400" \
+            --only-show-errors
+
+          # JSON: 1 hour
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.json" \
+            --content-type "application/json; charset=utf-8" \
+            --cache-control "public, max-age=3600, stale-while-revalidate=86400" \
+            --only-show-errors
+
+          # Generic YAML/YML MIME type
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "*.yaml" \
+            --include "*.yml" \
+            --content-type "application/yaml; charset=utf-8" \
+            --only-show-errors
+
+          # Current OpenAPI specs: never cache
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "api/*/openapi.yaml" \
+            --content-type "application/yaml; charset=utf-8" \
+            --cache-control "no-store, max-age=0, must-revalidate" \
+            --only-show-errors
+
+          # Versioned OpenAPI specs: immutable for one year
+          aws s3 cp public/ "s3://${BUCKET}/" \
+            --recursive \
+            --exclude "*" \
+            --include "api/*/openapi-*.yaml" \
+            --content-type "application/yaml; charset=utf-8" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --only-show-errors
+
+          # Health probe: never cache
+          if [ -f public/health/asset-probe.txt ]; then
+            aws s3 cp \
+              public/health/asset-probe.txt \
+              "s3://${BUCKET}/health/asset-probe.txt" \
+              --content-type "text/plain; charset=utf-8" \
+              --cache-control "no-store, max-age=0, must-revalidate" \
+              --only-show-errors
+          fi
+
+          # Custom 404: never cache
+          if [ -f public/404.html ]; then
+            aws s3 cp \
+              public/404.html \
+              "s3://${BUCKET}/404.html" \
+              --content-type "text/html; charset=utf-8" \
+              --cache-control "no-store" \
+              --only-show-errors
+          fi
 
       - name: Invalidate CloudFront cache
         run: |
