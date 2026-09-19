@@ -1,5 +1,6 @@
 /*
   Access-Control-Allow-Origin: *
+  Cross-Origin-Resource-Policy: cross-origin
 
 /*.woff2
   Content-Type: font/woff2
@@ -40,25 +41,10 @@
 /*.yml
   Content-Type: application/yaml; charset=utf-8
 
-/api/*/openapi.yaml
+/api/:service/openapi.yaml
   Cache-Control: no-store, max-age=0, must-revalidate
 
-/api/*/openapi-1.0.0.yaml
-  Cache-Control: public, max-age=31536000, immutable
-
-/api/dns-hosting/openapi-1.0.1.yaml
-  Cache-Control: public, max-age=31536000, immutable
-
-/api/keys-admin/openapi-1.0.1.yaml
-  Cache-Control: public, max-age=31536000, immutable
-
-/api/keys/openapi-1.1.0.yaml
-  Cache-Control: public, max-age=31536000, immutable
-
-/api/keys-admin/openapi-1.1.0.yaml
-  Cache-Control: public, max-age=31536000, immutable
-
-/api/mail/openapi-1.1.0.yaml
+/api/:service/openapi-:version.yaml
   Cache-Control: public, max-age=31536000, immutable
 
 /404.html
@@ -67,5 +53,11 @@
 
 /health/asset-probe.txt
   Content-Type: text/plain; charset=utf-8
-  Cache-Control: no-store
+  Cache-Control: no-store, max-age=0, must-revalidate
+  X-Content-Type-Options: nosniff
+
+/health/cdn-probe-v2.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=0, s-maxage=86400, stale-while-revalidate=604800
+  Timing-Allow-Origin: *
   X-Content-Type-Options: nosniff
