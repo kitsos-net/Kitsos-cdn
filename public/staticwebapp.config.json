@@ -47,7 +47,7 @@
         "Cache-Control": "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800",
         "Timing-Allow-Origin": "*",
         "X-Content-Type-Options": "nosniff",
-        "Access-Control-Expose-Headers": "CF-Ray, X-Amz-Cf-Pop, X-Amz-Cf-Id, X-Served-By, X-Cache, X-Cache-Hits, X-Vercel-Id, X-GitHub-Edge-Region, X-Azure-Ref, X-ID, X-ID-FE, Via, Server, Age"
+        "Access-Control-Expose-Headers": "CF-Ray, CF-Cache-Status, X-Amz-Cf-Pop, X-Amz-Cf-Id, X-Served-By, X-Cache, X-Cache-Hits, X-Timer, X-Fastly-Request-ID, X-Vercel-Id, X-GitHub-Edge-Region, X-Azure-Ref, X-ID, X-ID-FE, Via, Server, Age, Server-Timing"
       }
     },
     {
