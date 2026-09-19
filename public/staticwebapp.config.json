@@ -1,4 +1,290 @@
 {
+  "routes": [
+    {
+      "route": "/",
+      "redirect": "https://kitsos.net/cdn",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/keys/latest/openapi.yaml",
+      "redirect": "/api/keys/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/keys-admin/latest/openapi.yaml",
+      "redirect": "/api/keys-admin/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/mail/latest/openapi.yaml",
+      "redirect": "/api/mail/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/verify/latest/openapi.yaml",
+      "redirect": "/api/verify/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/hme/latest/openapi.yaml",
+      "redirect": "/api/hme/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/dns-hosting/latest/openapi.yaml",
+      "redirect": "/api/dns-hosting/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/api/utility/latest/openapi.yaml",
+      "redirect": "/api/utility/openapi.yaml",
+      "statusCode": 302
+    },
+    {
+      "route": "/health/cdn-probe-v2.txt",
+      "headers": {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800",
+        "Timing-Allow-Origin": "*",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/health/asset-probe.txt",
+      "headers": {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/api/keys/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/keys-admin/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/mail/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/verify/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/hme/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/dns-hosting/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/utility/openapi.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0, must-revalidate"
+      }
+    },
+    {
+      "route": "/api/dns-hosting/openapi-1.0.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/dns-hosting/openapi-1.0.1.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/keys-admin/openapi-1.0.1.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/keys-admin/openapi-1.1.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/keys/openapi-1.0.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/keys/openapi-1.1.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/mail/openapi-1.0.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/mail/openapi-1.1.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/verify/openapi-1.0.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/hme/openapi-1.0.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/hme/openapi-1.0.1.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/api/utility/openapi-1.0.0.yaml",
+      "headers": {
+        "Content-Type": "application/yaml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/fonts/fonts.css",
+      "headers": {
+        "Content-Type": "text/css; charset=utf-8",
+        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"
+      }
+    },
+    {
+      "route": "/fonts/Audiowide-Regular.woff2",
+      "headers": {
+        "Content-Type": "font/woff2",
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/fonts/geist-mono.woff2",
+      "headers": {
+        "Content-Type": "font/woff2",
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/fonts/inter-latin.woff2",
+      "headers": {
+        "Content-Type": "font/woff2",
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/fonts/inter-greek.woff2",
+      "headers": {
+        "Content-Type": "font/woff2",
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/fonts/inter-italic-latin.woff2",
+      "headers": {
+        "Content-Type": "font/woff2",
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/fonts/inter-italic-greek.woff2",
+      "headers": {
+        "Content-Type": "font/woff2",
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "route": "/fonts/kitsos-default/*",
+      "headers": {
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400"
+      }
+    },
+    {
+      "route": "/logos/*",
+      "headers": {
+        "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400"
+      }
+    },
+    {
+      "route": "/api/swagger/*",
+      "headers": {
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=86400"
+      }
+    },
+    {
+      "route": "/404.html",
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store"
+      }
+    }
+  ],
+  "globalHeaders": {
+    "Access-Control-Allow-Origin": "*",
+    "Cross-Origin-Resource-Policy": "cross-origin"
+  },
+  "mimeTypes": {
+    ".woff2": "font/woff2",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".json": "application/json; charset=utf-8",
+    ".yaml": "application/yaml; charset=utf-8",
+    ".yml": "application/yaml; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8"
+  },
   "responseOverrides": {
     "404": {
       "rewrite": "/404.html"
