@@ -138,6 +138,19 @@ jobs:
               --only-show-errors
           fi
 
+          # CDN benchmark probe:
+          # - browser revalidates on every use (max-age=0)
+          # - shared/CDN caches may keep it for 24h (s-maxage)
+          # - stale edge copy may be served for up to 7d during origin trouble
+          if [ -f public/health/cdn-probe-v2.txt ]; then
+            aws s3 cp \
+              public/health/cdn-probe-v2.txt \
+              "s3://${BUCKET}/health/cdn-probe-v2.txt" \
+              --content-type "text/plain; charset=utf-8" \
+              --cache-control "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800" \
+              --only-show-errors
+          fi
+
           # Custom 404: never cache
           if [ -f public/404.html ]; then
             aws s3 cp \
