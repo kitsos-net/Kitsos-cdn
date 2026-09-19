@@ -233,7 +233,7 @@
           },
           {
             "key": "Access-Control-Expose-Headers",
-            "value": "CF-Ray, X-Amz-Cf-Pop, X-Amz-Cf-Id, X-Served-By, X-Cache, X-Cache-Hits, X-Vercel-Id, X-GitHub-Edge-Region, X-Azure-Ref, X-ID, X-ID-FE, Via, Server, Age"
+            "value": "CF-Ray, CF-Cache-Status, X-Amz-Cf-Pop, X-Amz-Cf-Id, X-Served-By, X-Cache, X-Cache-Hits, X-Timer, X-Fastly-Request-ID, X-Vercel-Id, X-GitHub-Edge-Region, X-Azure-Ref, X-ID, X-ID-FE, Via, Server, Age, Server-Timing"
           }
         ]
       }
