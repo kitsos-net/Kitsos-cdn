@@ -10,6 +10,11 @@
     ],
     "redirects": [
       {
+        "source": "/",
+        "destination": "https://kitsos.net/cdn",
+        "type": 302
+      },
+      {
         "source": "/api/keys/latest/openapi.yaml",
         "destination": "/api/keys/openapi.yaml?latest",
         "type": 302
@@ -52,6 +57,10 @@
           {
             "key": "Access-Control-Allow-Origin",
             "value": "*"
+          },
+          {
+            "key": "Cross-Origin-Resource-Policy",
+            "value": "cross-origin"
           }
         ]
       },
@@ -196,6 +205,27 @@
           {
             "key": "Cache-Control",
             "value": "no-store"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
+        ]
+      },
+      {
+        "source": "/health/cdn-probe-v2.txt",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/plain; charset=utf-8"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
+          },
+          {
+            "key": "Timing-Allow-Origin",
+            "value": "*"
           },
           {
             "key": "X-Content-Type-Options",
