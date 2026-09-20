@@ -110,32 +110,31 @@ jobs:
             --content-type "application/yaml; charset=utf-8" \
             --only-show-errors
 
-          # Versioned Kitsos npm packages: immutable for one year.
-          # Published versions must never be replaced with different bytes.
-          aws s3 cp public/ "s3://${BUCKET}/" \
-            --recursive \
-            --exclude "*" \
-            --include "packages/npm/@kitsos/*/v*/*" \
-            --cache-control "public, max-age=31536000, immutable" \
-            --only-show-errors
+          # Versioned Kitsos npm packages are immutable for one year.
+          #
+          # IMPORTANT: use `cp` (not another `sync`) here intentionally.
+          # The base sync may skip byte-identical objects, while this second PUT
+          # must also replace metadata on versions that were already deployed.
+          #
+          # Package archives: explicit binary MIME type + immutable caching.
+          if [ -d public/packages/npm/@kitsos ]; then
+            aws s3 cp public/packages/npm/@kitsos/ "s3://${BUCKET}/packages/npm/@kitsos/" \
+              --recursive \
+              --exclude "*" \
+              --include "*/v*/*.tgz" \
+              --content-type "application/octet-stream" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
 
-          # Package archives: explicit binary MIME type and immutable caching.
-          aws s3 cp public/ "s3://${BUCKET}/" \
-            --recursive \
-            --exclude "*" \
-            --include "packages/npm/@kitsos/*/v*/*.tgz" \
-            --content-type "application/octet-stream" \
-            --cache-control "public, max-age=31536000, immutable" \
-            --only-show-errors
-
-          # Package checksums are immutable plain text.
-          aws s3 cp public/ "s3://${BUCKET}/" \
-            --recursive \
-            --exclude "*" \
-            --include "packages/npm/@kitsos/*/v*/*.sha256" \
-            --content-type "text/plain; charset=utf-8" \
-            --cache-control "public, max-age=31536000, immutable" \
-            --only-show-errors
+            # Package checksums: explicit UTF-8 text MIME type + immutable caching.
+            aws s3 cp public/packages/npm/@kitsos/ "s3://${BUCKET}/packages/npm/@kitsos/" \
+              --recursive \
+              --exclude "*" \
+              --include "*/v*/*.sha256" \
+              --content-type "text/plain; charset=utf-8" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
+          fi
 
           # Verify deployed npm package metadata in S3.
           # These checks fail the deployment if an existing object did not
@@ -230,7 +229,50 @@ jobs:
           fi
 
       - name: Invalidate CloudFront cache
+        id: invalidate
         run: |
-          aws cloudfront create-invalidation \
+          set -euo pipefail
+          INVALIDATION_ID="$(aws cloudfront create-invalidation \
             --distribution-id "${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }}" \
-            --paths "/*"
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+
+          echo "CloudFront invalidation: ${INVALIDATION_ID}"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --id "${INVALIDATION_ID}"
+
+      - name: Verify versioned npm package headers through CloudFront
+        run: |
+          set -euo pipefail
+
+          TGZ="public/packages/npm/@kitsos/consent/v1.0.0/kitsos-consent-1.0.0.tgz"
+          SHA="${TGZ}.sha256"
+
+          # Only run the concrete v1.0.0 smoke test when that immutable release
+          # exists in this checkout.
+          if [ ! -f "${TGZ}" ] || [ ! -f "${SHA}" ]; then
+            echo "Consent v1.0.0 package not present; skipping concrete CloudFront smoke test."
+            exit 0
+          fi
+
+          assert_header() {
+            local url="$1"
+            local expected_type="$2"
+            local headers
+
+            headers="$(curl --fail --silent --show-error --head "${url}")"
+            printf '%s\n' "${headers}"
+
+            printf '%s\n' "${headers}" | tr -d '\r' | grep -Fqi "cache-control: public, max-age=31536000, immutable"
+            printf '%s\n' "${headers}" | tr -d '\r' | grep -Fqi "content-type: ${expected_type}"
+          }
+
+          assert_header \
+            "https://b.cdn.kitsos.net/packages/npm/@kitsos/consent/v1.0.0/kitsos-consent-1.0.0.tgz" \
+            "application/octet-stream"
+
+          assert_header \
+            "https://b.cdn.kitsos.net/packages/npm/@kitsos/consent/v1.0.0/kitsos-consent-1.0.0.tgz.sha256" \
+            "text/plain; charset=utf-8"
