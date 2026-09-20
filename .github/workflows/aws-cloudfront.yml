@@ -137,6 +137,47 @@ jobs:
             --cache-control "public, max-age=31536000, immutable" \
             --only-show-errors
 
+          # Verify deployed npm package metadata in S3.
+          # These checks fail the deployment if an existing object did not
+          # receive the immutable cache policy or the expected MIME type.
+          verify_package_metadata() {
+            local file="$1"
+            local expected_type="$2"
+            local key="${file#public/}"
+
+            local actual_type actual_cache
+            actual_type="$(aws s3api head-object \
+              --bucket "${BUCKET}" \
+              --key "${key}" \
+              --query 'ContentType' \
+              --output text)"
+            actual_cache="$(aws s3api head-object \
+              --bucket "${BUCKET}" \
+              --key "${key}" \
+              --query 'CacheControl' \
+              --output text)"
+
+            if [ "${actual_type}" != "${expected_type}" ]; then
+              echo "::error file=${file}::Unexpected S3 Content-Type: ${actual_type} (expected ${expected_type})"
+              exit 1
+            fi
+
+            if [ "${actual_cache}" != "public, max-age=31536000, immutable" ]; then
+              echo "::error file=${file}::Unexpected S3 Cache-Control: ${actual_cache}"
+              exit 1
+            fi
+
+            echo "Verified ${key}: ${actual_type}; ${actual_cache}"
+          }
+
+          while IFS= read -r -d '' file; do
+            verify_package_metadata "${file}" "application/octet-stream"
+          done < <(find public/packages/npm/@kitsos -type f -path '*/v*/*.tgz' -print0 2>/dev/null || true)
+
+          while IFS= read -r -d '' file; do
+            verify_package_metadata "${file}" "text/plain; charset=utf-8"
+          done < <(find public/packages/npm/@kitsos -type f -path '*/v*/*.sha256' -print0 2>/dev/null || true)
+
           # Current OpenAPI specs: never cache
           aws s3 cp public/ "s3://${BUCKET}/" \
             --recursive \
