@@ -15,3 +15,16 @@ Each API publishes three forms of its OpenAPI document:
 
 The available service names are `keys`, `keys-admin`, `mail`, `verify`, `hme`,
 and `utility`.
+
+## Versioned npm packages
+
+Kitsos npm package archives and checksums use this structure:
+
+```text
+public/packages/npm/@kitsos/<package>/v<semver>/<package>-<semver>.tgz
+public/packages/npm/@kitsos/<package>/v<semver>/<package>-<semver>.tgz.sha256
+```
+
+Published package versions are immutable. Never replace an existing version
+with different bytes; every change requires a new SemVer version. Consumers
+should pin a concrete version instead of relying on a moving alias.
