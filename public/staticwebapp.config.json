@@ -59,6 +59,13 @@
       }
     },
     {
+      "route": "/packages/npm/@kitsos/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
       "route": "/api/keys/openapi.yaml",
       "headers": {
         "Content-Type": "application/yaml; charset=utf-8",
@@ -284,7 +291,9 @@
     ".json": "application/json; charset=utf-8",
     ".yaml": "application/yaml; charset=utf-8",
     ".yml": "application/yaml; charset=utf-8",
-    ".txt": "text/plain; charset=utf-8"
+    ".txt": "text/plain; charset=utf-8",
+    ".tgz": "application/octet-stream",
+    ".sha256": "text/plain; charset=utf-8"
   },
   "responseOverrides": {
     "404": {

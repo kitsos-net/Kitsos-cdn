@@ -148,6 +148,45 @@
         ]
       },
       {
+        "source": "**/*.tgz",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/octet-stream"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
+        ]
+      },
+      {
+        "source": "**/*.sha256",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/plain; charset=utf-8"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
+        ]
+      },
+      {
+        "source": "/packages/npm/@kitsos/**/v*/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
+        ]
+      },
+      {
         "source": "/api/*/openapi.yaml",
         "headers": [
           {
