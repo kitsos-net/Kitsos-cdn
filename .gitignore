@@ -58,6 +58,7 @@ node_modules/
 
 # Output of 'npm pack'
 *.tgz
+!public/packages/npm/@kitsos/*/v*/*.tgz
 
 # Yarn Integrity file
 .yarn-integrity
