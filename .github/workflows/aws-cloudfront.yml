@@ -238,10 +238,10 @@ jobs:
             --query 'Invalidation.Id' \
             --output text)"
 
-          echo "CloudFront invalidation: ${INVALIDATION_ID}"
-          aws cloudfront wait invalidation-completed \
-            --distribution-id "${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID }}" \
-            --id "${INVALIDATION_ID}"
+          echo "CloudFront invalidation requested: ${INVALIDATION_ID}"
+          # The existing deploy role can create invalidations but intentionally
+          # does not have cloudfront:GetInvalidation. The following live smoke
+          # test retries until the invalidated package response is refreshed.
 
       - name: Verify versioned npm package headers through CloudFront
         run: |
@@ -260,13 +260,24 @@ jobs:
           assert_header() {
             local url="$1"
             local expected_type="$2"
-            local headers
+            local headers attempt
 
-            headers="$(curl --fail --silent --show-error --head "${url}")"
+            for attempt in {1..18}; do
+              headers="$(curl --fail --silent --show-error --head "${url}")"
+              if printf '%s\n' "${headers}" | tr -d '\r' | grep -Fqi "cache-control: public, max-age=31536000, immutable" \
+                && printf '%s\n' "${headers}" | tr -d '\r' | grep -Fqi "content-type: ${expected_type}"; then
+                printf '%s\n' "${headers}"
+                echo "CloudFront package headers verified on attempt ${attempt}."
+                return 0
+              fi
+
+              echo "CloudFront still serving old/incomplete metadata (attempt ${attempt}/18); retrying in 10s..."
+              sleep 10
+            done
+
             printf '%s\n' "${headers}"
-
-            printf '%s\n' "${headers}" | tr -d '\r' | grep -Fqi "cache-control: public, max-age=31536000, immutable"
-            printf '%s\n' "${headers}" | tr -d '\r' | grep -Fqi "content-type: ${expected_type}"
+            echo "::error::CloudFront did not expose the expected immutable package headers after invalidation."
+            return 1
           }
 
           assert_header \
