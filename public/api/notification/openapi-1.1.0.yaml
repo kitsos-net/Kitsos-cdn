@@ -1,0 +1,928 @@
+openapi: 3.0.3
+info:
+  title: Kitsos Notification API
+  version: "1.1.0"
+  description: |
+    User notification inbox and Web Push device management for Kitsos.
+
+    User-facing endpoints require a Clerk session JWT. Trusted Kitsos services
+    create notifications with a separate internal bearer secret. Clerk session
+    lifecycle events are authenticated with Svix signature headers; they do not
+    use an Authorization header.
+  contact:
+    name: Kitsos Support
+    url: https://kitsos.net/contact
+    email: support@services.kitsos.net
+  license:
+    name: Proprietary
+    url: https://kitsos.net/terms
+servers:
+  - url: https://notification.api.kitsos.net
+    description: Production
+tags:
+  - name: Notifications
+    description: User-wide notification inbox.
+  - name: Preferences
+    description: Notification category preferences.
+  - name: Push
+    description: Web Push registration and device management.
+  - name: Webhooks
+    description: Signed Clerk session lifecycle events.
+  - name: Internal
+    description: Server-to-server notification creation and retraction.
+security:
+  - clerkSession: []
+paths:
+  /v1/notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: List notifications
+      description: Returns the current user's notifications in reverse chronological order.
+      parameters:
+        - name: unread
+          in: query
+          description: Return only unread notifications.
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          description: Maximum number of notifications to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+        - name: cursor
+          in: query
+          description: Notification ID after which the next page begins.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notification page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /v1/notifications/{notificationId}:
+    parameters:
+      - $ref: "#/components/parameters/NotificationId"
+    get:
+      tags: [Notifications]
+      operationId: getNotification
+      summary: Get a notification
+      responses:
+        "200":
+          description: Notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/notifications/{notificationId}/read:
+    parameters:
+      - $ref: "#/components/parameters/NotificationId"
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Mark a notification as read
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/preferences:
+    get:
+      tags: [Preferences]
+      operationId: getNotificationPreferences
+      summary: Get notification preferences
+      responses:
+        "200":
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [Preferences]
+      operationId: updateNotificationPreferences
+      summary: Update notification preferences
+      description: Replaces the stored category preference map with the supplied boolean entries.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [categories]
+              properties:
+                categories:
+                  $ref: "#/components/schemas/CategoryPreferences"
+      responses:
+        "200":
+          description: Updated notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/push/status:
+    get:
+      tags: [Push]
+      operationId: getPushStatus
+      summary: Get account and current-browser Push status
+      description: Invalid or revoked Clerk session bindings are removed before the status is returned.
+      responses:
+        "200":
+          description: Push status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/push/register:
+    post:
+      tags: [Push]
+      operationId: registerPushDevice
+      summary: Register or refresh a Push device
+      description: |
+        Binds an FCM registration token to the current active Clerk session.
+        Re-registering the same token refreshes its existing binding.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushRegistrationRequest"
+      responses:
+        "200":
+          description: Push device registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushRegistrationResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "409":
+          description: The Push token belongs to another account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/push/current:
+    delete:
+      tags: [Push]
+      operationId: disconnectCurrentPushSession
+      summary: Disconnect Push devices for the current session
+      responses:
+        "200":
+          description: Current session disconnected from Push
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled:
+                    type: boolean
+                    enum: [false]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/push/devices:
+    get:
+      tags: [Push]
+      operationId: listPushDevices
+      summary: List Push devices
+      responses:
+        "200":
+          description: Push devices connected to the account
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PushDevice"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/push/devices/{deviceId}:
+    parameters:
+      - $ref: "#/components/parameters/DeviceId"
+    patch:
+      tags: [Push]
+      operationId: renamePushDevice
+      summary: Rename a Push device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 60
+      responses:
+        "200":
+          description: Device renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updated, label]
+                properties:
+                  updated:
+                    type: boolean
+                    enum: [true]
+                  label:
+                    type: string
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/push/devices/{deviceId}/test:
+    parameters:
+      - $ref: "#/components/parameters/DeviceId"
+    post:
+      tags: [Push]
+      operationId: testPushDevice
+      summary: Send a test Push notification to one device
+      responses:
+        "200":
+          description: Test Push accepted by FCM
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [delivered]
+                properties:
+                  delivered:
+                    type: boolean
+                    enum: [true]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          description: The device's Clerk session is no longer active and the binding was removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          description: FCM did not accept the test notification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/webhooks/clerk:
+    post:
+      tags: [Webhooks]
+      operationId: receiveClerkSessionEvent
+      summary: Receive a Clerk session lifecycle event
+      description: |
+        Receives the minimal transformed Clerk payload. Clerk/Svix signs the
+        transformed raw request body. No Authorization header is sent.
+
+        `session.ended`, `session.pending`, `session.removed`, and
+        `session.revoked` remove all Push bindings for the supplied session.
+        `session.created` is acknowledged without creating a binding.
+      security:
+        - svixId: []
+          svixTimestamp: []
+          svixSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClerkSessionEvent"
+      responses:
+        "200":
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [received]
+                properties:
+                  received:
+                    type: boolean
+                    enum: [true]
+        "401":
+          description: Missing, expired, or invalid Svix signature.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /v1/internal/notifications:
+    post:
+      tags: [Internal]
+      operationId: createInternalNotification
+      summary: Create and optionally push a user notification
+      description: |
+        Private server-to-server endpoint for trusted Kitsos services. When a
+        non-expired notification with the same `dedupeKey` already exists for
+        the user, the existing notification is returned without another Push.
+      security:
+        - internalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InternalNotificationRequest"
+      responses:
+        "200":
+          description: Matching notification already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeduplicatedNotificationResponse"
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedNotificationResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /v1/internal/notifications/retract:
+    post:
+      tags: [Internal]
+      operationId: retractInternalNotifications
+      summary: Retract one notification or every notification of a type
+      description: |
+        Removes matching notifications from the user's Kitsos inbox. Retraction
+        IDs are returned to the PWA for seven days so notifications still shown
+        by the current service worker can be closed on the next app sync.
+
+        Firebase Cloud Messaging cannot recall a Web Push notification that the
+        browser or operating system has already displayed, so immediate remote
+        removal from a closed device is not guaranteed.
+      security:
+        - internalBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InternalRetractionRequest"
+      responses:
+        "200":
+          description: Retraction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetractionResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AccountUnavailable"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    clerkSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Clerk session JWT containing valid `sub`, `sid`, and `exp` claims.
+    internalBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Server-only `INTERNAL_NOTIFICATION_SECRET`. Never expose it to a browser.
+    svixId:
+      type: apiKey
+      in: header
+      name: svix-id
+    svixTimestamp:
+      type: apiKey
+      in: header
+      name: svix-timestamp
+    svixSignature:
+      type: apiKey
+      in: header
+      name: svix-signature
+  parameters:
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^ntf_[A-Za-z0-9]+$"
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^push_[a-f0-9]{40}$"
+  responses:
+    InvalidRequest:
+      description: Invalid request body or parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AccountUnavailable:
+      description: The Clerk session is inactive, or the account is banned, deleted, or being deleted.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: The requested resource was not found or is not owned by the user.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Too many requests.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: The service could not complete the request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: Required production configuration is missing.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    NotificationCategory:
+      type: string
+      enum: [security, api, account, service, product]
+    NotificationSeverity:
+      type: string
+      enum: [info, success, warning, critical]
+    Notification:
+      type: object
+      required: [id, type, category, severity, title, body, createdAt]
+      properties:
+        id:
+          type: string
+          example: ntf_4db62c6743e54e23b6f3bcb87ccfbc29
+        type:
+          type: string
+          maxLength: 100
+          example: limit.warning
+        category:
+          $ref: "#/components/schemas/NotificationCategory"
+        severity:
+          $ref: "#/components/schemas/NotificationSeverity"
+        title:
+          type: string
+          maxLength: 160
+        body:
+          type: string
+          maxLength: 1000
+        href:
+          type: string
+          nullable: true
+          description: Relative app path or an allowlisted HTTPS Kitsos URL.
+          example: /limits
+        attachmentUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: HTTPS image URL hosted on cdn.kitsos.net or app.kitsos.net. Browser support for Web Push images varies.
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        dedupeKey:
+          type: string
+          nullable: true
+          maxLength: 180
+    NotificationPage:
+      type: object
+      required: [items, unreadCount, retractedIds]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        nextCursor:
+          type: string
+          nullable: true
+        unreadCount:
+          type: integer
+          minimum: 0
+          description: Exact unread count across all pages, used for the PWA app badge.
+        retractedIds:
+          type: array
+          description: Recently retracted notification IDs used for best-effort cleanup of displayed browser notifications.
+          items:
+            type: string
+    ReadResponse:
+      type: object
+      required: [read, unreadCount]
+      properties:
+        read:
+          type: boolean
+          enum: [true]
+        unreadCount:
+          type: integer
+          minimum: 0
+    CategoryPreferences:
+      type: object
+      additionalProperties:
+        type: boolean
+      example:
+        security: true
+        api: true
+        account: true
+        service: false
+        product: true
+    Preferences:
+      type: object
+      required: [userId, categories, updatedAt]
+      properties:
+        userId:
+          type: string
+          pattern: "^user_[A-Za-z0-9]+$"
+        categories:
+          $ref: "#/components/schemas/CategoryPreferences"
+        updatedAt:
+          type: string
+          format: date-time
+    PushPlatform:
+      type: string
+      enum: [web, ios, android]
+    PushDevice:
+      type: object
+      required: [id, platform, label, lastSeenAt, active, current]
+      properties:
+        id:
+          type: string
+          pattern: "^push_[a-f0-9]{40}$"
+        platform:
+          $ref: "#/components/schemas/PushPlatform"
+        label:
+          type: string
+          minLength: 1
+          maxLength: 60
+        browser:
+          type: string
+          maxLength: 80
+          example: Safari
+        os:
+          type: string
+          maxLength: 80
+          example: iOS
+        deviceType:
+          type: string
+          maxLength: 80
+          example: iPhone
+        lastSeenAt:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+        current:
+          type: boolean
+          description: Whether the binding belongs to the requesting Clerk session.
+    PushStatus:
+      type: object
+      required: [enabled, activeDeviceCount, webEnabled, iosEnabled, androidEnabled, currentBrowserBound]
+      properties:
+        enabled:
+          type: boolean
+        activeDeviceCount:
+          type: integer
+          minimum: 0
+        webEnabled:
+          type: boolean
+        iosEnabled:
+          type: boolean
+        androidEnabled:
+          type: boolean
+        currentBrowserBound:
+          type: boolean
+    PushRegistrationRequest:
+      type: object
+      required: [fcmToken, platform]
+      properties:
+        fcmToken:
+          type: string
+          minLength: 80
+          maxLength: 4096
+          pattern: "^[A-Za-z0-9:_-]+$"
+          description: Firebase Cloud Messaging registration token.
+        platform:
+          $ref: "#/components/schemas/PushPlatform"
+        label:
+          type: string
+          minLength: 1
+          maxLength: 60
+        browser:
+          type: string
+          maxLength: 80
+        os:
+          type: string
+          maxLength: 80
+        deviceType:
+          type: string
+          maxLength: 80
+    PushRegistrationResponse:
+      type: object
+      required: [enabled, platform, deviceId]
+      properties:
+        enabled:
+          type: boolean
+          enum: [true]
+        platform:
+          $ref: "#/components/schemas/PushPlatform"
+        deviceId:
+          type: string
+          pattern: "^push_[a-f0-9]{40}$"
+    ClerkSessionEvent:
+      type: object
+      additionalProperties: false
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum:
+            - session.created
+            - session.ended
+            - session.pending
+            - session.removed
+            - session.revoked
+        data:
+          type: object
+          additionalProperties: false
+          required: [id]
+          properties:
+            id:
+              type: string
+              pattern: "^sess_[A-Za-z0-9]+$"
+    InternalNotificationRequest:
+      type: object
+      required: [userId, type, category, severity, title, body]
+      properties:
+        userId:
+          type: string
+          maxLength: 128
+          pattern: "^user_[A-Za-z0-9]+$"
+        type:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          $ref: "#/components/schemas/NotificationCategory"
+        severity:
+          $ref: "#/components/schemas/NotificationSeverity"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        href:
+          type: string
+          nullable: true
+          description: Relative app path or HTTPS URL on an allowlisted Kitsos host.
+        attachmentUrl:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 2048
+          description: HTTPS image URL on cdn.kitsos.net or app.kitsos.net. It is included in Web Push where supported.
+        push:
+          type: boolean
+          default: true
+        dedupeKey:
+          type: string
+          minLength: 1
+          maxLength: 180
+    InternalRetractionRequest:
+      type: object
+      required: [userId]
+      description: Provide exactly one of notificationId or type.
+      properties:
+        userId:
+          type: string
+          maxLength: 128
+          pattern: "^user_[A-Za-z0-9]+$"
+        notificationId:
+          type: string
+          maxLength: 128
+        type:
+          type: string
+          minLength: 1
+          maxLength: 100
+      oneOf:
+        - required: [notificationId]
+        - required: [type]
+    RetractionResponse:
+      type: object
+      required: [retracted, notificationIds, unreadCount, pushRecall, systemNotificationCleanup]
+      properties:
+        retracted:
+          type: integer
+          minimum: 0
+        notificationIds:
+          type: array
+          items:
+            type: string
+        unreadCount:
+          type: integer
+          minimum: 0
+        pushRecall:
+          type: string
+          enum: [not_supported]
+        systemNotificationCleanup:
+          type: string
+          enum: [on_next_app_sync, not_needed]
+    DeliveryResult:
+      type: object
+      required: [attempted, delivered]
+      properties:
+        attempted:
+          type: integer
+          minimum: 0
+        delivered:
+          type: integer
+          minimum: 0
+    CreatedNotificationResponse:
+      type: object
+      required: [notificationId, delivery]
+      properties:
+        notificationId:
+          type: string
+        delivery:
+          $ref: "#/components/schemas/DeliveryResult"
+    DeduplicatedNotificationResponse:
+      type: object
+      required: [notificationId, deduplicated]
+      properties:
+        notificationId:
+          type: string
+        deduplicated:
+          type: boolean
+          enum: [true]
+    ErrorDetail:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
