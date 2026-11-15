@@ -1,0 +1,569 @@
+openapi: 3.0.3
+info:
+  title: Kitsos DMARC & TLS Reporting API
+  version: "1.0.0"
+  description: >
+    Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
+    Public endpoints accept Kitsos API keys and short-lived session API keys
+    issued by keys-api. A customer domain becomes active only after its DNS
+    records and the Kitsos-operated external-reporting authorization resolve.
+  contact:
+    name: Kitsos
+    url: https://kitsos.net/contact
+    email: support@services.kitsos.net
+  termsOfService: https://kitsos.net/terms
+  license:
+    name: Proprietary
+    url: https://kitsos.net/terms
+servers:
+  - url: https://dmarc.api.kitsos.net/v1
+externalDocs:
+  description: Kitsos API documentation
+  url: https://docs.api.kitsos.net/dmarc
+tags:
+  - name: Default
+    description: Service health.
+  - name: Domains
+    description: Domain enrollment, DNS setup and sender policy.
+  - name: Reports
+    description: Tenant-scoped report metadata and parsed records.
+  - name: Statistics
+    description: Aggregated DMARC and TLS measurements.
+  - name: Account
+    description: Usage and bounded account export.
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Kitsos API key or short-lived session API key (kitsos_ prefix).
+  parameters:
+    DomainId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
+  responses:
+    Unauthorized:
+      description: Missing, invalid, expired or unsupported credential.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Insufficient scope or missing verified zone grant.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource is absent or not owned by the caller.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        limitType: { type: string }
+        limit: { type: integer }
+    DomainSummary:
+      type: object
+      required: [id, domain, status, rua_address, tls_address]
+      properties:
+        id: { type: string, format: uuid }
+        domain: { type: string, example: example.com }
+        status: { type: string, enum: [pending_dns, active, configuration_error, suspended, deleting] }
+        rua_address: { type: string, format: email }
+        tls_address: { type: string, format: email }
+        created_at: { type: integer, format: int64 }
+        updated_at: { type: integer, format: int64 }
+    Domain:
+      allOf:
+        - { $ref: '#/components/schemas/DomainSummary' }
+        - type: object
+          properties:
+            senderMode: { type: string, enum: [allow_all, allowlist] }
+            allowedSenders:
+              type: array
+              items: { type: string, format: email }
+            authorization_record_id: { type: string, nullable: true }
+    DnsSetup:
+      type: object
+      required: [dmarc, tls, externalAuthorization]
+      properties:
+        dmarc:
+          type: object
+          properties:
+            name: { type: string, example: _dmarc.example.com }
+            rua: { type: string, example: 'mailto:rua+aaaaaaaaaaaa@dmarc.kitsos.net' }
+            instruction: { type: string }
+        tls:
+          type: object
+          properties:
+            name: { type: string, example: _smtp._tls.example.com }
+            value: { type: string }
+        externalAuthorization:
+          type: object
+          description: Kitsos operates the wildcard; the customer-specific name is queried during check-dns.
+          properties:
+            name: { type: string, example: 'example.com._report._dmarc.dmarc.kitsos.net' }
+            wildcardName: { type: string, example: '*._report._dmarc.dmarc.kitsos.net' }
+            value: { type: string, example: 'v=DMARC1' }
+            managedBy: { type: string, example: Kitsos }
+            status: { type: string, enum: [operator-managed-wildcard, managed] }
+        recommendedDmarc:
+          type: object
+          properties:
+            value: { type: string, nullable: true }
+            warning: { type: string }
+    DnsRecordCheck:
+      type: object
+      required: [valid, records]
+      properties:
+        valid: { type: boolean }
+        records:
+          type: array
+          items: { type: string }
+    DnsDiagnostics:
+      type: object
+      required: [dmarc, tls, externalAuthorization, valid]
+      properties:
+        dmarc: { $ref: '#/components/schemas/DnsRecordCheck' }
+        tls: { $ref: '#/components/schemas/DnsRecordCheck' }
+        externalAuthorization: { $ref: '#/components/schemas/DnsRecordCheck' }
+        valid: { type: boolean }
+    SenderPolicy:
+      type: object
+      required: [mode, allowedSenders]
+      properties:
+        mode: { type: string, enum: [allow_all, allowlist] }
+        allowedSenders:
+          type: array
+          maxItems: 100
+          items: { type: string, format: email }
+    ReportSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        report_type: { type: string, enum: [dmarc, tls] }
+        status: { type: string, enum: [received, queued, processing, completed, duplicate, quota_buffered, quota_dropped, failed] }
+        received_at: { type: integer, format: int64 }
+        processed_at: { type: integer, format: int64, nullable: true }
+        error_code: { type: string, nullable: true }
+        reporter: { type: string, nullable: true }
+        provider_report_id: { type: string, nullable: true }
+        period_start: { type: integer, format: int64, nullable: true }
+        period_end: { type: integer, format: int64, nullable: true }
+        reported_domain: { type: string, nullable: true }
+        raw_expires_at: { type: integer, format: int64, nullable: true }
+    DmarcRecord:
+      type: object
+      properties:
+        source_ip: { type: string }
+        observed_messages: { type: integer }
+        dmarc_spf: { type: string }
+        dmarc_dkim: { type: string }
+        disposition: { type: string }
+        header_from: { type: string }
+    TlsPolicy:
+      type: object
+      properties:
+        policy_type: { type: string }
+        policy_domain: { type: string }
+        successful_sessions: { type: integer }
+        failed_sessions: { type: integer }
+        details_json: { type: string }
+    ReportDetail:
+      type: object
+      required: [report, records, tlsPolicies]
+      properties:
+        report: { $ref: '#/components/schemas/ReportSummary' }
+        records:
+          type: array
+          items: { $ref: '#/components/schemas/DmarcRecord' }
+        tlsPolicies:
+          type: array
+          items: { $ref: '#/components/schemas/TlsPolicy' }
+    Usage:
+      type: object
+      properties:
+        day: { type: string, format: date }
+        limits:
+          type: object
+          additionalProperties: { type: integer }
+        usage:
+          type: object
+          properties:
+            attempts: { type: integer }
+            accepted: { type: integer }
+            buffered: { type: integer }
+            dropped: { type: integer }
+            filtered: { type: integer }
+    ExportPage:
+      type: object
+      properties:
+        type: { type: string, enum: [reports, dmarcRecords, tlsPolicies, dailyStatistics] }
+        limit: { type: integer }
+        offset: { type: integer }
+        nextOffset: { type: integer, nullable: true }
+        rows:
+          type: array
+          items: { type: object, additionalProperties: true }
+paths:
+  /health:
+    get:
+      operationId: getDmarcHealth
+      tags: [Default]
+      summary: Worker health check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /domains:
+    get:
+      operationId: listDmarcDomains
+      tags: [Domains]
+      summary: List owned monitored domains
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Domain list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DomainSummary' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createDmarcDomain
+      tags: [Domains]
+      summary: Register a verified DNS zone
+      description: Requires a current Kitsos Verify zone grant and an available domain quota.
+      x-kitsos-scope: dmarc:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain: { type: string, example: example.com }
+      responses:
+        '201':
+          description: Domain registered pending DNS validation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  domain: { type: string }
+                  status: { type: string, enum: [pending_dns] }
+                  setup: { $ref: '#/components/schemas/DnsSetup' }
+                  authorization: { type: string, enum: [operator-managed-wildcard] }
+        '400': { description: Invalid domain }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Domain already registered or quota exceeded }
+  /domains/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+    get:
+      operationId: getDmarcDomain
+      tags: [Domains]
+      summary: Get owned domain
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Domain
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Domain' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteDmarcDomain
+      tags: [Domains]
+      summary: Delete domain and associated reports
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/setup:
+    get:
+      operationId: getDmarcDnsSetup
+      tags: [Domains]
+      summary: Retrieve DNS setup instructions
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS setup instructions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DnsSetup' }
+  /domains/{id}/dns:
+    get:
+      operationId: getDmarcDnsDiagnostics
+      tags: [Domains]
+      summary: Check public DNS without changing domain status
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS diagnostics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DnsDiagnostics' }
+        '503': { description: DNS query failed }
+  /domains/{id}/check-dns:
+    post:
+      operationId: activateDmarcDomain
+      tags: [Domains]
+      summary: Check public DNS and update activation status
+      x-kitsos-scope: dmarc:manage
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS diagnostics and activation result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DnsDiagnostics' }
+        '503': { description: DNS query failed }
+  /domains/{id}/senders:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+    get:
+      operationId: getDmarcSenderPolicy
+      tags: [Domains]
+      summary: Get SMTP envelope sender policy
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Sender policy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SenderPolicy' }
+    put:
+      operationId: replaceDmarcSenderPolicy
+      tags: [Domains]
+      summary: Replace SMTP envelope sender policy
+      x-kitsos-scope: dmarc:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SenderPolicy' }
+      responses:
+        '200':
+          description: Updated sender policy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SenderPolicy' }
+        '400': { description: Invalid sender policy }
+  /usage:
+    get:
+      operationId: getDmarcUsage
+      tags: [Account]
+      summary: Get effective limits and daily usage
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Usage summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usage' }
+  /domains/{id}/reports:
+    get:
+      operationId: listDmarcReports
+      tags: [Reports]
+      summary: List report metadata
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Report list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ReportSummary' } }
+  /domains/{id}/reports/{reportId}:
+    get:
+      operationId: getDmarcReport
+      tags: [Reports]
+      summary: Get a report with bounded parsed details
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/ReportId' }
+      responses:
+        '200':
+          description: Report and details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/reports/{reportId}/raw:
+    get:
+      operationId: downloadDmarcRawReport
+      tags: [Reports]
+      summary: Download a private original report
+      x-kitsos-scope: dmarc:raw:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/ReportId' }
+      responses:
+        '200':
+          description: Original report bytes
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/tls-reports:
+    get:
+      operationId: listDmarcTlsReports
+      tags: [Reports]
+      summary: List TLS report metadata
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: TLS report list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ReportSummary' } }
+  /domains/{id}/overview:
+    get:
+      operationId: getDmarcOverview
+      tags: [Statistics]
+      summary: Get aggregate DMARC metrics
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Aggregate DMARC metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  passed: { type: integer, nullable: true }
+                  failed: { type: integer, nullable: true }
+                  observed: { type: integer, nullable: true }
+  /domains/{id}/tls-overview:
+    get:
+      operationId: getDmarcTlsOverview
+      tags: [Statistics]
+      summary: Get aggregate TLS session metrics
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Aggregate TLS metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  successfulSessions: { type: integer, nullable: true }
+                  failedSessions: { type: integer, nullable: true }
+  /domains/{id}/sources:
+    get:
+      operationId: listDmarcSources
+      tags: [Statistics]
+      summary: Aggregate sending source IPs
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Source IP aggregates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    source_ip: { type: string }
+                    observedMessages: { type: integer }
+  /domains/{id}/timeline:
+    get:
+      operationId: getDmarcTimeline
+      tags: [Statistics]
+      summary: Daily DMARC and TLS measurements
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Daily statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    day_bucket: { type: integer, format: int64 }
+                    report_type: { type: string, enum: [dmarc, tls] }
+                    pass_count: { type: integer }
+                    fail_count: { type: integer }
+                    observed_messages: { type: integer }
+  /export:
+    get:
+      operationId: exportDmarcData
+      tags: [Account]
+      summary: Page through owned parsed reporting data
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema: { type: string, enum: [reports, dmarcRecords, tlsPolicies, dailyStatistics] }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Bounded tenant-scoped export page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportPage' }
+        '400': { description: Invalid export type or pagination }
