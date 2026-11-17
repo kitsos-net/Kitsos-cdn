@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos DMARC & TLS Reporting API
-  version: "1.8.0"
+  version: "1.8.1"
   description: >
     Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
     Public endpoints accept Kitsos API keys and short-lived session API keys
@@ -589,12 +589,32 @@ paths:
         - { $ref: '#/components/parameters/DomainId' }
         - { $ref: '#/components/parameters/Limit' }
         - { $ref: '#/components/parameters/Offset' }
+        - name: reportType
+          in: query
+          schema: { type: string, enum: [dmarc, tls] }
+          description: Filter by aggregate DMARC or SMTP TLS report.
+        - name: reporter
+          in: query
+          schema: { type: string, maxLength: 253 }
+          description: Exact reporting provider name.
+        - name: status
+          in: query
+          schema: { type: string, enum: [received, queued, processing, completed, duplicate, quota_buffered, quota_dropped, failed] }
+        - name: from
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 9999999999 }
+          description: Inclusive lower bound on received_at as Unix seconds.
+        - name: to
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 9999999999 }
+          description: Inclusive upper bound on received_at as Unix seconds.
       responses:
         '200':
           description: Report list
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/ReportSummary' } }
+        '400': { description: Invalid filter or pagination }
   /domains/{id}/reports/{reportId}:
     get:
       operationId: getDmarcReport
