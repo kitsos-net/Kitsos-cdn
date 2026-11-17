@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos DMARC & TLS Reporting API
-  version: "1.8.2"
+  version: "1.9.0"
   description: >
     Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
     Public endpoints accept Kitsos API keys and short-lived session API keys
@@ -490,6 +490,33 @@ paths:
                   analysis: { type: object, nullable: true, additionalProperties: true }
                   reportingSetup: { type: object, additionalProperties: true }
         '503': { description: DNS query failed }
+  /domains/{id}/dns/spf:
+    get:
+      operationId: inspectDmarcSpfDns
+      tags: [Domains]
+      summary: Inspect the current SPF record and bounded include/redirect graph
+      description: This is a current-DNS reconstruction. It does not evaluate a sending IP or claim Cloudflare's SMTP-time SPF path. At most ten TXT DNS queries and five reference levels are inspected. Macro references are not expanded.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: SPF terms, referenced policies, provenance and inspection limits
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [root, queriedAt, provenance, evaluation, dnsQueries, inspectionQueryBudget, nodes, warnings]
+                properties:
+                  root: { type: string }
+                  queriedAt: { type: integer, format: int64 }
+                  provenance: { type: string, enum: [current-dns-reconstruction] }
+                  evaluation: { type: string, enum: [not-performed-no-trusted-sending-ip] }
+                  dnsQueries: { type: integer, minimum: 0, maximum: 10 }
+                  inspectionQueryBudget: { type: integer, enum: [10] }
+                  note: { type: string }
+                  nodes: { type: array, items: { type: object, additionalProperties: true } }
+                  warnings: { type: array, items: { type: string } }
   /domains/{id}/dns/history:
     get:
       operationId: listDmarcDnsHistory
