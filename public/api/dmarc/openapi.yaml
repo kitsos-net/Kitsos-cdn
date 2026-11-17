@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos DMARC & TLS Reporting API
-  version: "1.8.1"
+  version: "1.8.2"
   description: >
     Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
     Public endpoints accept Kitsos API keys and short-lived session API keys
@@ -765,7 +765,8 @@ paths:
     get:
       operationId: getDmarcServer
       tags: [Statistics]
-      summary: Inspect a sending IP, its reporters and DKIM selectors
+      summary: Inspect a sending IP, its reporters, DKIM selectors and forwarding indicators
+      description: Provider forwarding override reasons are reported evidence. SPF failure with aligned DKIM is a low-confidence heuristic and does not prove forwarding.
       x-kitsos-scope: dmarc:read
       parameters:
         - { $ref: '#/components/parameters/DomainId' }
@@ -778,7 +779,19 @@ paths:
           description: Weighted IP metrics and reporter breakdown
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  forwarding:
+                    type: object
+                    required: [classification, reportedForwardingVolume, heuristicSpfFailDkimPassVolume, provenance, note]
+                    properties:
+                      classification: { type: string, enum: [reported_forwarding, likely_forwarded, unknown] }
+                      reportedForwardingVolume: { type: integer, minimum: 0 }
+                      heuristicSpfFailDkimPassVolume: { type: integer, minimum: 0 }
+                      provenance: { type: string, enum: [provider-policy-override, inferred-from-alignment, none] }
+                      note: { type: string }
         '404': { $ref: '#/components/responses/NotFound' }
   /domains/{id}/servers/{ip}/enrich:
     post:
