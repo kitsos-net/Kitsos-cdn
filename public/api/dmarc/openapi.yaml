@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos DMARC & TLS Reporting API
-  version: "1.9.0"
+  version: "1.9.1"
   description: >
     Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
     Public endpoints accept Kitsos API keys and short-lived session API keys
@@ -729,12 +729,36 @@ paths:
       operationId: listDmarcServers
       tags: [Statistics]
       summary: List sending IPs with message-weighted metrics
-      description: Metrics cover retained detail rows; firstSeen and lastSeen use record creation time.
+      description: >
+        Metrics cover retained detail rows. Filters select aggregate-report rows before IP grouping,
+        so volume and compliance rates describe only matching rows. from/to use Unix seconds at
+        report-row creation time; this can differ from the period covered by the report.
+        Multiple DKIM signatures never multiply message volume. Unknown alignment is distinct from fail.
       x-kitsos-scope: dmarc:read
       parameters:
         - { $ref: '#/components/parameters/DomainId' }
         - { $ref: '#/components/parameters/Limit' }
         - { $ref: '#/components/parameters/Offset' }
+        - { name: sourceId, in: query, schema: { type: string }, description: Manual source UUID or ip-prefixed unclassified IP. }
+        - { name: sourceIp, in: query, schema: { type: string }, description: Exact observed IPv4 or IPv6 address. }
+        - { name: dmarc, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: spfAlignment, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: dkimAlignment, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: reporter, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: country, in: query, schema: { type: string, pattern: '^[A-Za-z]{2}$' }, description: Only available when enrichment supplies a country. }
+        - { name: asn, in: query, schema: { type: integer, minimum: 1 }, description: Only available when enrichment supplies an ASN. }
+        - { name: headerFrom, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: envelopeFrom, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: recipientDomain, in: query, schema: { type: string, maxLength: 253 }, description: Matches the optional envelope-to domain. }
+        - { name: selector, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: signingDomain, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: disposition, in: query, schema: { type: string, enum: [none, quarantine, reject, unknown] } }
+        - { name: classification, in: query, schema: { type: string, enum: [authorized, known, unknown, suspicious, unclassified] } }
+        - { name: forwarding, in: query, schema: { type: string, enum: [reported, likely, unknown] }, description: Reported override or low-confidence SPF-fail/DKIM-pass heuristic. }
+        - { name: from, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive report-row creation timestamp in Unix seconds. }
+        - { name: to, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive report-row creation timestamp in Unix seconds. }
+        - { name: sort, in: query, schema: { type: string, enum: [volume, firstSeen, lastSeen, sourceIp], default: volume } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
       responses:
         '200':
           description: Paginated IP aggregates
