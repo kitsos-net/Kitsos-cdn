@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos DMARC & TLS Reporting API
-  version: "1.9.1"
+  version: "1.10.0"
   description: >
     Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
     Public endpoints accept Kitsos API keys and short-lived session API keys
@@ -863,12 +863,18 @@ paths:
       operationId: listDmarcDkimSelectors
       tags: [Statistics]
       summary: List observed DKIM selectors and associated message volume
-      description: A message can carry multiple DKIM signatures, so associated volume may overlap across selectors.
+      description: A message can carry multiple DKIM signatures, so associated volume may overlap across selectors. Date filters use report-row creation time.
       x-kitsos-scope: dmarc:read
       parameters:
         - { $ref: '#/components/parameters/DomainId' }
         - { $ref: '#/components/parameters/Limit' }
         - { $ref: '#/components/parameters/Offset' }
+        - { name: signingDomain, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: result, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: from, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp. }
+        - { name: to, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp. }
+        - { name: sort, in: query, schema: { type: string, enum: [volume, firstSeen, lastSeen, selector], default: volume } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
       responses:
         '200':
           description: Paginated selector observations
@@ -1072,10 +1078,15 @@ paths:
     get:
       operationId: getDmarcTimeline
       tags: [Statistics]
-      summary: Daily DMARC and TLS measurements
+      summary: Daily or UTC Monday-week DMARC and TLS measurements
+      description: Day buckets follow report receipt day. A week bucket is the Unix day number of its UTC Monday. DMARC messages and TLS sessions remain separate rows and units.
       x-kitsos-scope: dmarc:read
       parameters:
         - { $ref: '#/components/parameters/DomainId' }
+        - { name: reportType, in: query, schema: { type: string, enum: [dmarc, tls] } }
+        - { name: groupBy, in: query, schema: { type: string, enum: [day, week], default: day } }
+        - { name: from, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp, converted to UTC day. }
+        - { name: to, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp, converted to UTC day. }
       responses:
         '200':
           description: Daily statistics

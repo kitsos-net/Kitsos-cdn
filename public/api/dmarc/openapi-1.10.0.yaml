@@ -1,0 +1,1124 @@
+openapi: 3.0.3
+info:
+  title: Kitsos DMARC & TLS Reporting API
+  version: "1.10.0"
+  description: >
+    Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
+    Public endpoints accept Kitsos API keys and short-lived session API keys
+    issued by keys-api. A customer domain becomes active only after its DNS
+    records and the Kitsos-operated external-reporting authorization resolve.
+  contact:
+    name: Kitsos
+    url: https://kitsos.net/contact
+    email: support@services.kitsos.net
+  termsOfService: https://kitsos.net/terms
+  license:
+    name: Proprietary
+    url: https://kitsos.net/terms
+servers:
+  - url: https://dmarc.api.kitsos.net/v1
+externalDocs:
+  description: Kitsos API documentation
+  url: https://docs.api.kitsos.net/dmarc
+tags:
+  - name: Default
+    description: Service health.
+  - name: Domains
+    description: Domain enrollment, DNS setup and sender policy.
+  - name: Reports
+    description: Tenant-scoped report metadata and parsed records.
+  - name: Statistics
+    description: Aggregated DMARC and TLS measurements.
+  - name: Account
+    description: Usage and bounded account export.
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Kitsos API key or short-lived session API key (kitsos_ prefix).
+  parameters:
+    DomainId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema: { type: string }
+    SourceIp:
+      name: ip
+      in: path
+      required: true
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
+  responses:
+    Unauthorized:
+      description: Missing, invalid, expired or unsupported credential.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Insufficient scope or missing verified zone grant.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource is absent or not owned by the caller.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        limitType: { type: string }
+        limit: { type: integer }
+    DomainSummary:
+      type: object
+      required: [id, domain, status, rua_address, tls_address]
+      properties:
+        id: { type: string, format: uuid }
+        domain: { type: string, example: example.com }
+        status: { type: string, enum: [pending_dns, active, configuration_error, suspended, deleting] }
+        rua_address: { type: string, format: email }
+        tls_address: { type: string, format: email }
+        created_at: { type: integer, format: int64 }
+        updated_at: { type: integer, format: int64 }
+    Domain:
+      allOf:
+        - { $ref: '#/components/schemas/DomainSummary' }
+        - type: object
+          properties:
+            senderMode: { type: string, enum: [allow_all, allowlist] }
+            allowedSenders:
+              type: array
+              items: { type: string, format: email }
+            authorization_record_id: { type: string, nullable: true }
+    DnsSetup:
+      type: object
+      required: [dmarc, tls, externalAuthorization]
+      properties:
+        dmarc:
+          type: object
+          properties:
+            name: { type: string, example: _dmarc.example.com }
+            rua: { type: string, example: 'mailto:rua+aaaaaaaaaaaa@dmarc.kitsos.net' }
+            instruction: { type: string }
+        tls:
+          type: object
+          properties:
+            name: { type: string, example: _smtp._tls.example.com }
+            value: { type: string }
+        externalAuthorization:
+          type: object
+          description: Kitsos operates the wildcard; the customer-specific name is queried during check-dns.
+          properties:
+            name: { type: string, example: 'example.com._report._dmarc.dmarc.kitsos.net' }
+            wildcardName: { type: string, example: '*._report._dmarc.dmarc.kitsos.net' }
+            value: { type: string, example: 'v=DMARC1' }
+            managedBy: { type: string, example: Kitsos }
+            status: { type: string, enum: [operator-managed-wildcard, managed] }
+        recommendedDmarc:
+          type: object
+          properties:
+            value: { type: string, nullable: true }
+            warning: { type: string }
+    DnsRecordCheck:
+      type: object
+      required: [valid, records]
+      properties:
+        valid: { type: boolean }
+        records:
+          type: array
+          items: { type: string }
+    DnsDiagnostics:
+      type: object
+      required: [dmarc, tls, externalAuthorization, valid]
+      properties:
+        dmarc: { $ref: '#/components/schemas/DnsRecordCheck' }
+        tls: { $ref: '#/components/schemas/DnsRecordCheck' }
+        externalAuthorization: { $ref: '#/components/schemas/DnsRecordCheck' }
+        valid: { type: boolean }
+    SenderPolicy:
+      type: object
+      required: [mode, allowedSenders]
+      properties:
+        mode: { type: string, enum: [allow_all, allowlist] }
+        allowedSenders:
+          type: array
+          maxItems: 100
+          items: { type: string, format: email }
+    ReportSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        report_type: { type: string, enum: [dmarc, tls] }
+        status: { type: string, enum: [received, queued, processing, completed, duplicate, quota_buffered, quota_dropped, failed] }
+        received_at: { type: integer, format: int64 }
+        processed_at: { type: integer, format: int64, nullable: true }
+        error_code: { type: string, nullable: true }
+        reporter: { type: string, nullable: true }
+        provider_report_id: { type: string, nullable: true }
+        period_start: { type: integer, format: int64, nullable: true }
+        period_end: { type: integer, format: int64, nullable: true }
+        reported_domain: { type: string, nullable: true }
+        raw_expires_at: { type: integer, format: int64, nullable: true }
+    DmarcRecord:
+      type: object
+      properties:
+        source_ip: { type: string }
+        observed_messages: { type: integer }
+        dmarc_spf: { type: string }
+        dmarc_dkim: { type: string }
+        disposition: { type: string }
+        header_from: { type: string }
+        envelope_from: { type: string, nullable: true }
+        envelope_to: { type: string, nullable: true }
+    TlsPolicy:
+      type: object
+      properties:
+        policy_type: { type: string }
+        policy_domain: { type: string }
+        mx_host: { type: string, nullable: true }
+        successful_sessions: { type: integer }
+        failed_sessions: { type: integer }
+        details_json: { type: string }
+    ReportDetail:
+      type: object
+      required: [report, records, tlsPolicies]
+      properties:
+        report: { $ref: '#/components/schemas/ReportSummary' }
+        records:
+          type: array
+          items: { $ref: '#/components/schemas/DmarcRecord' }
+        dkimResults:
+          type: array
+          items:
+            type: object
+            properties:
+              record_id: { type: string }
+              signing_domain: { type: string, nullable: true }
+              selector: { type: string, nullable: true }
+              result: { type: string, nullable: true }
+        spfResults:
+          type: array
+          items:
+            type: object
+            properties:
+              record_id: { type: string }
+              evaluated_domain: { type: string, nullable: true }
+              scope: { type: string, nullable: true }
+              result: { type: string, nullable: true }
+        tlsPolicies:
+          type: array
+          items: { $ref: '#/components/schemas/TlsPolicy' }
+        tlsFailureDetails:
+          type: array
+          description: Failure detail counts may overlap and must not be summed as unique sessions.
+          items: { type: object, additionalProperties: true }
+    Usage:
+      type: object
+      properties:
+        day: { type: string, format: date }
+        limits:
+          type: object
+          additionalProperties: { type: integer }
+        usage:
+          type: object
+          properties:
+            attempts: { type: integer }
+            accepted: { type: integer }
+            buffered: { type: integer }
+            dropped: { type: integer }
+            filtered: { type: integer }
+    ExportPage:
+      type: object
+      properties:
+        type: { type: string, enum: [reports, dmarcRecords, dkimResults, spfResults, policyOverrides, tlsPolicies, tlsFailureDetails, dailyStatistics, sourceGroups, sourceAssignments, dnsHistory, ipEnrichment] }
+        limit: { type: integer }
+        offset: { type: integer }
+        nextOffset: { type: integer, nullable: true }
+        rows:
+          type: array
+          items: { type: object, additionalProperties: true }
+paths:
+  /domains/{id}/tests:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+    post:
+      operationId: createDmarcLiveTest
+      tags: [Reports]
+      summary: Create a ten-minute temporary email test recipient
+      description: Uses the adjustable dmarc_live_tests_per_day limit, default three per UTC day. The domain must be active.
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '201':
+          description: Pending test with temporary recipient address
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '429': { description: Daily live-test limit reached }
+    get:
+      operationId: listDmarcLiveTests
+      tags: [Reports]
+      summary: List owned live email tests
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Paginated test session metadata
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /domains/{id}/tests/{testId}:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+      - name: testId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getDmarcLiveTest
+      tags: [Reports]
+      summary: Get tenant-bound live-test status and available diagnostics
+      description: Cloudflare may reject failing messages before the Worker receives them. Expiration without receipt proves neither pass nor fail. Sending IP and HELO remain null unless verified metadata becomes available.
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Test status and trusted Cloudflare authentication results when received
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteDmarcLiveTest
+      tags: [Reports]
+      summary: Delete a live-test session and its stored diagnostics
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /tools/analyze-headers:
+    post:
+      operationId: analyzeDmarcEmailHeaders
+      tags: [Reports]
+      summary: Explain pasted email headers without storing them
+      description: Results are based solely on untrusted, user-supplied headers and are not independently verified. Limited to 20 analyses per user per UTC day.
+      x-kitsos-scope: dmarc:read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [headers]
+              properties:
+                headers: { type: string, maxLength: 64000 }
+      responses:
+        '200':
+          description: Parsed header claims with unverified provenance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provenance: { type: string, enum: [user-supplied-unverified] }
+                  notice: { type: string }
+                  authenticationResults: { type: array, items: { type: object, additionalProperties: true } }
+                  dkimSignatures: { type: array, items: { type: object, additionalProperties: true } }
+                  received: { type: array, items: { type: string } }
+        '400': { description: Invalid or oversized headers }
+        '429': { description: Daily analysis limit reached }
+  /health:
+    get:
+      operationId: getDmarcHealth
+      tags: [Default]
+      summary: Worker health check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+  /domains:
+    get:
+      operationId: listDmarcDomains
+      tags: [Domains]
+      summary: List owned monitored domains
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Domain list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DomainSummary' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createDmarcDomain
+      tags: [Domains]
+      summary: Register a verified DNS zone
+      description: Requires a current Kitsos Verify zone grant and an available domain quota.
+      x-kitsos-scope: dmarc:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain: { type: string, example: example.com }
+      responses:
+        '201':
+          description: Domain registered pending DNS validation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  domain: { type: string }
+                  status: { type: string, enum: [pending_dns] }
+                  setup: { $ref: '#/components/schemas/DnsSetup' }
+                  authorization: { type: string, enum: [operator-managed-wildcard] }
+        '400': { description: Invalid domain }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Domain already registered or quota exceeded }
+  /domains/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+    get:
+      operationId: getDmarcDomain
+      tags: [Domains]
+      summary: Get owned domain
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Domain
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Domain' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteDmarcDomain
+      tags: [Domains]
+      summary: Delete domain and associated reports
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/setup:
+    get:
+      operationId: getDmarcDnsSetup
+      tags: [Domains]
+      summary: Retrieve DNS setup instructions
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS setup instructions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DnsSetup' }
+  /domains/{id}/dns:
+    get:
+      operationId: getDmarcDnsDiagnostics
+      tags: [Domains]
+      summary: Check public DNS without changing domain status
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS diagnostics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DnsDiagnostics' }
+        '503': { description: DNS query failed }
+  /domains/{id}/dns/dmarc:
+    get:
+      operationId: analyzeDmarcDnsRecord
+      tags: [Domains]
+      summary: Parse and explain the published DMARC policy record
+      description: Follows RFC 9989 current tags and flags pct, rf, and ri as historic. Does not assert message-level authentication.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS result with policy interpretation, warnings, errors and tag explanations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  raw: { type: string, nullable: true }
+                  dnsStatus: { type: string, enum: [missing, conflict, found] }
+                  valid: { type: boolean }
+                  analysis: { type: object, nullable: true, additionalProperties: true }
+                  reportingSetup: { type: object, additionalProperties: true }
+        '503': { description: DNS query failed }
+  /domains/{id}/dns/spf:
+    get:
+      operationId: inspectDmarcSpfDns
+      tags: [Domains]
+      summary: Inspect the current SPF record and bounded include/redirect graph
+      description: This is a current-DNS reconstruction. It does not evaluate a sending IP or claim Cloudflare's SMTP-time SPF path. At most ten TXT DNS queries and five reference levels are inspected. Macro references are not expanded.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: SPF terms, referenced policies, provenance and inspection limits
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [root, queriedAt, provenance, evaluation, dnsQueries, inspectionQueryBudget, nodes, warnings]
+                properties:
+                  root: { type: string }
+                  queriedAt: { type: integer, format: int64 }
+                  provenance: { type: string, enum: [current-dns-reconstruction] }
+                  evaluation: { type: string, enum: [not-performed-no-trusted-sending-ip] }
+                  dnsQueries: { type: integer, minimum: 0, maximum: 10 }
+                  inspectionQueryBudget: { type: integer, enum: [10] }
+                  note: { type: string }
+                  nodes: { type: array, items: { type: object, additionalProperties: true } }
+                  warnings: { type: array, items: { type: string } }
+  /domains/{id}/dns/history:
+    get:
+      operationId: listDmarcDnsHistory
+      tags: [Domains]
+      summary: List retained DNS snapshots and changes
+      description: Records are sampled daily for active domains and retained for 30 days.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+        - name: type
+          in: query
+          schema: { type: string, enum: [DMARC, SPF, TLS-RPT, MTA-STS, DKIM] }
+      responses:
+        '200':
+          description: Paginated DNS snapshots
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /domains/{id}/dns/snapshot:
+    post:
+      operationId: captureDmarcDnsSnapshot
+      tags: [Domains]
+      summary: Capture a DNS snapshot, at most once per hour
+      x-kitsos-scope: dmarc:manage
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '201': { description: Snapshot captured }
+        '429': { description: A snapshot was captured within the last hour }
+  /domains/{id}/check-dns:
+    post:
+      operationId: activateDmarcDomain
+      tags: [Domains]
+      summary: Check public DNS and update activation status
+      x-kitsos-scope: dmarc:manage
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: DNS diagnostics and activation result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DnsDiagnostics' }
+        '503': { description: DNS query failed }
+  /domains/{id}/senders:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+    get:
+      operationId: getDmarcSenderPolicy
+      tags: [Domains]
+      summary: Get SMTP envelope sender policy
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Sender policy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SenderPolicy' }
+    put:
+      operationId: replaceDmarcSenderPolicy
+      tags: [Domains]
+      summary: Replace SMTP envelope sender policy
+      x-kitsos-scope: dmarc:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SenderPolicy' }
+      responses:
+        '200':
+          description: Updated sender policy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SenderPolicy' }
+        '400': { description: Invalid sender policy }
+  /usage:
+    get:
+      operationId: getDmarcUsage
+      tags: [Account]
+      summary: Get effective limits and daily usage
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200':
+          description: Usage summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usage' }
+  /domains/{id}/reports:
+    get:
+      operationId: listDmarcReports
+      tags: [Reports]
+      summary: List report metadata
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+        - name: reportType
+          in: query
+          schema: { type: string, enum: [dmarc, tls] }
+          description: Filter by aggregate DMARC or SMTP TLS report.
+        - name: reporter
+          in: query
+          schema: { type: string, maxLength: 253 }
+          description: Exact reporting provider name.
+        - name: status
+          in: query
+          schema: { type: string, enum: [received, queued, processing, completed, duplicate, quota_buffered, quota_dropped, failed] }
+        - name: from
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 9999999999 }
+          description: Inclusive lower bound on received_at as Unix seconds.
+        - name: to
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 9999999999 }
+          description: Inclusive upper bound on received_at as Unix seconds.
+      responses:
+        '200':
+          description: Report list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ReportSummary' } }
+        '400': { description: Invalid filter or pagination }
+  /domains/{id}/reports/{reportId}:
+    get:
+      operationId: getDmarcReport
+      tags: [Reports]
+      summary: Get a report with bounded parsed details
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/ReportId' }
+      responses:
+        '200':
+          description: Report and details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/reports/{reportId}/raw:
+    get:
+      operationId: downloadDmarcRawReport
+      tags: [Reports]
+      summary: Download a private original report
+      x-kitsos-scope: dmarc:raw:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/ReportId' }
+      responses:
+        '200':
+          description: Original report bytes
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/tls-reports:
+    get:
+      operationId: listDmarcTlsReports
+      tags: [Reports]
+      summary: List TLS report metadata
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: TLS report list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ReportSummary' } }
+  /domains/{id}/overview:
+    get:
+      operationId: getDmarcOverview
+      tags: [Statistics]
+      summary: Get aggregate DMARC metrics
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Aggregate DMARC metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  passed: { type: integer, nullable: true }
+                  failed: { type: integer, nullable: true }
+                  observed: { type: integer, nullable: true }
+                  unknownVolume: { type: integer }
+                  spfAlignedVolume: { type: integer }
+                  dkimAlignedVolume: { type: integer }
+                  bothAlignedVolume: { type: integer }
+                  spfOnlyVolume: { type: integer }
+                  dkimOnlyVolume: { type: integer }
+                  sendingIpCount: { type: integer }
+                  reportingOrganizationCount: { type: integer }
+                  dmarcComplianceRate: { type: number, nullable: true, description: Percentage weighted by observed message count. }
+                  spfAlignmentRate: { type: number, nullable: true }
+                  dkimAlignmentRate: { type: number, nullable: true }
+                  timeBasis: { type: string, enum: [record-created] }
+  /domains/{id}/servers:
+    get:
+      operationId: listDmarcServers
+      tags: [Statistics]
+      summary: List sending IPs with message-weighted metrics
+      description: >
+        Metrics cover retained detail rows. Filters select aggregate-report rows before IP grouping,
+        so volume and compliance rates describe only matching rows. from/to use Unix seconds at
+        report-row creation time; this can differ from the period covered by the report.
+        Multiple DKIM signatures never multiply message volume. Unknown alignment is distinct from fail.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+        - { name: sourceId, in: query, schema: { type: string }, description: Manual source UUID or ip-prefixed unclassified IP. }
+        - { name: sourceIp, in: query, schema: { type: string }, description: Exact observed IPv4 or IPv6 address. }
+        - { name: dmarc, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: spfAlignment, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: dkimAlignment, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: reporter, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: country, in: query, schema: { type: string, pattern: '^[A-Za-z]{2}$' }, description: Only available when enrichment supplies a country. }
+        - { name: asn, in: query, schema: { type: integer, minimum: 1 }, description: Only available when enrichment supplies an ASN. }
+        - { name: headerFrom, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: envelopeFrom, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: recipientDomain, in: query, schema: { type: string, maxLength: 253 }, description: Matches the optional envelope-to domain. }
+        - { name: selector, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: signingDomain, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: disposition, in: query, schema: { type: string, enum: [none, quarantine, reject, unknown] } }
+        - { name: classification, in: query, schema: { type: string, enum: [authorized, known, unknown, suspicious, unclassified] } }
+        - { name: forwarding, in: query, schema: { type: string, enum: [reported, likely, unknown] }, description: Reported override or low-confidence SPF-fail/DKIM-pass heuristic. }
+        - { name: from, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive report-row creation timestamp in Unix seconds. }
+        - { name: to, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive report-row creation timestamp in Unix seconds. }
+        - { name: sort, in: query, schema: { type: string, enum: [volume, firstSeen, lastSeen, sourceIp], default: volume } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+      responses:
+        '200':
+          description: Paginated IP aggregates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeBasis: { type: string, enum: [record-created] }
+                  nextOffset: { type: integer, nullable: true }
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sourceIp: { type: string }
+                        volume: { type: integer }
+                        compliantVolume: { type: integer }
+                        dmarcComplianceRate: { type: number, nullable: true }
+                        spfAlignmentRate: { type: number, nullable: true }
+                        dkimAlignmentRate: { type: number, nullable: true }
+                        firstSeen: { type: integer, nullable: true }
+                        lastSeen: { type: integer, nullable: true }
+  /domains/{id}/report-quality:
+    get:
+      operationId: getDmarcReportQuality
+      tags: [Statistics]
+      summary: Inspect report receipt, gaps and retained-field coverage
+      description: Observed reports cannot prove that all receiving providers submitted data.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Conservative report coverage and quality indicators
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  coverageStatus: { type: string, enum: [no-reports, known-gaps, observed-not-verified-complete] }
+                  partialData: { type: boolean }
+                  receivedReports: { type: integer }
+                  processedReports: { type: integer }
+                  bufferedReports: { type: integer }
+                  droppedReports: { type: integer }
+                  failedReports: { type: integer }
+                  parseFailures: { type: integer }
+                  duplicateReports: { type: integer }
+                  lastReportReceivedAt: { type: integer, nullable: true }
+                  reportingOrganizations:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+  /domains/{id}/servers/{ip}:
+    get:
+      operationId: getDmarcServer
+      tags: [Statistics]
+      summary: Inspect a sending IP, its reporters, DKIM selectors and forwarding indicators
+      description: Provider forwarding override reasons are reported evidence. SPF failure with aligned DKIM is a low-confidence heuristic and does not prove forwarding.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - name: ip
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Weighted IP metrics and reporter breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  forwarding:
+                    type: object
+                    required: [classification, reportedForwardingVolume, heuristicSpfFailDkimPassVolume, provenance, note]
+                    properties:
+                      classification: { type: string, enum: [reported_forwarding, likely_forwarded, unknown] }
+                      reportedForwardingVolume: { type: integer, minimum: 0 }
+                      heuristicSpfFailDkimPassVolume: { type: integer, minimum: 0 }
+                      provenance: { type: string, enum: [provider-policy-override, inferred-from-alignment, none] }
+                      note: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /domains/{id}/servers/{ip}/enrich:
+    post:
+      operationId: refreshDmarcServerPtr
+      tags: [Statistics]
+      summary: Refresh cached reverse DNS for a reported IP
+      description: PTR data does not verify the sender or its physical location. ASN and country remain null without a trusted provider.
+      x-kitsos-scope: dmarc:manage
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/SourceIp' }
+      responses:
+        '200': { description: PTR lookup result and provenance }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { description: Refreshed within the last hour }
+  /domains/{id}/dkim/selectors:
+    get:
+      operationId: listDmarcDkimSelectors
+      tags: [Statistics]
+      summary: List observed DKIM selectors and associated message volume
+      description: A message can carry multiple DKIM signatures, so associated volume may overlap across selectors. Date filters use report-row creation time.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+        - { name: signingDomain, in: query, schema: { type: string, maxLength: 253 } }
+        - { name: result, in: query, schema: { type: string, enum: [pass, fail, unknown] } }
+        - { name: from, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp. }
+        - { name: to, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp. }
+        - { name: sort, in: query, schema: { type: string, enum: [volume, firstSeen, lastSeen, selector], default: volume } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+      responses:
+        '200':
+          description: Paginated selector observations
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /domains/{id}/dkim/selectors/{selector}/dns:
+    get:
+      operationId: inspectDmarcDkimSelectorDns
+      tags: [Statistics]
+      summary: Inspect DNS key for an observed DKIM selector
+      description: The selector and signing domain must have appeared in a report owned by the caller. A present key does not verify a signature.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - name: selector
+          in: path
+          required: true
+          schema: { type: string }
+        - name: domain
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Public DNS key presence, key type and diagnostics
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '404': { description: Selector has not been observed for this domain }
+        '503': { description: DNS query failed }
+  /domains/{id}/tls-overview:
+    get:
+      operationId: getDmarcTlsOverview
+      tags: [Statistics]
+      summary: Get aggregate TLS session metrics
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      responses:
+        '200':
+          description: Aggregate TLS metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  successfulSessions: { type: integer, nullable: true }
+                  failedSessions: { type: integer, nullable: true }
+                  countMeaning: { type: string }
+  /domains/{id}/tls/failures:
+    get:
+      operationId: listDmarcTlsFailures
+      tags: [Statistics]
+      summary: Group TLS failure detail entries by result type
+      description: Detail counts are nonexclusive and may overlap within a policy.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Paginated failure category observations
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /domains/{id}/tls/policies:
+    get:
+      operationId: listDmarcTlsPolicies
+      tags: [Statistics]
+      summary: Group reported TLS policies and MX hosts
+      description: Session counts can overlap across applied policies.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Paginated policy aggregates
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /domains/{id}/sources:
+    get:
+      operationId: listDmarcSources
+      tags: [Statistics]
+      summary: List manually grouped services and unclassified IP sources
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+        - name: classification
+          in: query
+          schema: { type: string, enum: [authorized, known, unknown, suspicious, unclassified] }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [volume, name, firstSeen, lastSeen] }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc] }
+      responses:
+        '200':
+          description: Paginated weighted source aggregates
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+    post:
+      operationId: createDmarcSource
+      tags: [Statistics]
+      summary: Create a customer-defined source group
+      x-kitsos-scope: dmarc:manage
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 120 }
+                classification: { type: string, enum: [authorized, known, unknown, suspicious, unclassified] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: Group created }
+  /domains/{id}/sources/{sourceId}:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+      - { $ref: '#/components/parameters/SourceId' }
+    get:
+      operationId: getDmarcSource
+      tags: [Statistics]
+      summary: Get source metrics, dispositions and daily trend
+      x-kitsos-scope: dmarc:read
+      responses:
+        '200': { description: Source details }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateDmarcSource
+      tags: [Statistics]
+      summary: Update a manual source name, classification or note
+      x-kitsos-scope: dmarc:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 120 }
+                classification: { type: string, enum: [authorized, known, unknown, suspicious, unclassified] }
+                note: { type: string, maxLength: 1000, nullable: true }
+      responses:
+        '200': { description: Group updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteDmarcSource
+      tags: [Statistics]
+      summary: Delete a manual group; IPs return to unclassified sources
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '204': { description: Group deleted }
+  /domains/{id}/sources/{sourceId}/servers:
+    get:
+      operationId: listDmarcSourceServers
+      tags: [Statistics]
+      summary: List IPs associated with a sending source
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/SourceId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200': { description: Paginated IP summaries }
+  /domains/{id}/sources/{sourceId}/servers/{ip}:
+    parameters:
+      - { $ref: '#/components/parameters/DomainId' }
+      - { $ref: '#/components/parameters/SourceId' }
+      - { $ref: '#/components/parameters/SourceIp' }
+    put:
+      operationId: assignDmarcSourceIp
+      tags: [Statistics]
+      summary: Assign an observed IP to a manual source group
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '200': { description: IP assigned }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unassignDmarcSourceIp
+      tags: [Statistics]
+      summary: Return an IP to its unclassified source
+      x-kitsos-scope: dmarc:manage
+      responses:
+        '204': { description: IP unassigned }
+  /domains/{id}/timeline:
+    get:
+      operationId: getDmarcTimeline
+      tags: [Statistics]
+      summary: Daily or UTC Monday-week DMARC and TLS measurements
+      description: Day buckets follow report receipt day. A week bucket is the Unix day number of its UTC Monday. DMARC messages and TLS sessions remain separate rows and units.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { name: reportType, in: query, schema: { type: string, enum: [dmarc, tls] } }
+        - { name: groupBy, in: query, schema: { type: string, enum: [day, week], default: day } }
+        - { name: from, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp, converted to UTC day. }
+        - { name: to, in: query, schema: { type: integer, minimum: 0 }, description: Inclusive Unix timestamp, converted to UTC day. }
+      responses:
+        '200':
+          description: Daily statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    day_bucket: { type: integer, format: int64 }
+                    report_type: { type: string, enum: [dmarc, tls] }
+                    pass_count: { type: integer }
+                    fail_count: { type: integer }
+                    observed_messages: { type: integer }
+  /export:
+    get:
+      operationId: exportDmarcData
+      tags: [Account]
+      summary: Page through owned parsed reporting data
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema: { type: string, enum: [reports, dmarcRecords, dkimResults, spfResults, policyOverrides, tlsPolicies, tlsFailureDetails, dailyStatistics, sourceGroups, sourceAssignments, dnsHistory, ipEnrichment] }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Bounded tenant-scoped export page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportPage' }
+        '400': { description: Invalid export type or pagination }
