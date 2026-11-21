@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kitsos DMARC & TLS Reporting API
-  version: "1.10.0"
+  version: "1.11.0"
   description: >
     Receive and inspect aggregate DMARC and SMTP TLS reports for verified domains.
     Public endpoints accept Kitsos API keys and short-lived session API keys
@@ -517,6 +517,39 @@ paths:
                   note: { type: string }
                   nodes: { type: array, items: { type: object, additionalProperties: true } }
                   warnings: { type: array, items: { type: string } }
+  /domains/{id}/events:
+    get:
+      operationId: listDmarcDomainEvents
+      tags: [Domains]
+      summary: List reporting, DNS, and live test activity for an owned domain
+      description: Events are sorted newest first. DNS configuration events occur on confirmed status transitions, not on DNS query errors.
+      x-kitsos-scope: dmarc:read
+      parameters:
+        - { $ref: '#/components/parameters/DomainId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Paginated domain activity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rows, nextOffset]
+                properties:
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, type, payload, createdAt]
+                      properties:
+                        id: { type: string, format: uuid }
+                        type: { type: string }
+                        payload: { type: object, additionalProperties: true }
+                        createdAt: { type: integer, description: Unix seconds }
+                  nextOffset: { type: integer, nullable: true }
+        '400': { description: Invalid pagination }
+        '404': { description: Domain not found or not owned }
   /domains/{id}/dns/history:
     get:
       operationId: listDmarcDnsHistory
